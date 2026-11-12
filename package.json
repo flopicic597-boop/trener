@@ -1,0 +1,26 @@
+{
+  "name": "trener-evidencija",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Евиденција клијената, планирање тренинга и праћење напретка (PWA, ради без интернета)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "dependencies": {
+    "@fontsource/roboto-condensed": "^5.3.0",
+    "dexie": "4.4.7"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.2.8",
+    "vite": "8.3.8",
+    "vite-plugin-pwa": "2.0.0",
+    "vitest": "5.1.0",
+    "workbox-window": "^7.4.1"
+  }
+}

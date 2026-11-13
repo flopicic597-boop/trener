@@ -224,6 +224,18 @@ export async function renderEditor(main, [id]) {
     };
   };
 
+  /** Објашњење када се из PDF-а не могу аутоматски прочитати вриједности */
+  const unreadable = (why, textOk = false) => openModal({
+    title: 'Вриједности нису прочитане аутоматски',
+    body: `<div class="stack"><p>${esc(why)}</p>
+      <p><b>Шта можете урадити:</b></p>
+      <ul class="find">
+        <li>Унесите вриједности ручно: <b>+ Додај параметар</b> или брзи избор испод наслова „Вриједности“. Приложени PDF остаје сачуван уз налаз.</li>
+        ${textOk ? '' : '<li>Отворите PDF у другом прегледачу (нпр. Google Drive или Chrome), означите текст табеле и копирајте га. Ако се копира читљив текст, залијепите га у поље <b>Текст налаза</b> и додирните <b>Препознај вриједности из текста</b>.</li><li>Затражите од лабораторије налаз у PDF облику послат е-поштом (такви PDF-ови обично имају исправан текст).</li>'}
+      </ul></div>`,
+    foot: '<button class="btn primary" data-close>У реду</button>',
+  });
+
   /* ---------- прилози ---------- */
   const drawAtts = async () => {
     const list = await repo.listAttachments({ findingId: F.id });
@@ -258,10 +270,15 @@ export async function renderEditor(main, [id]) {
       const a = await repo.getAttachment(b.dataset.read);
       b.disabled = true; b.textContent = 'Читам…';
       try {
-        const text = a.mime === 'application/pdf' ? await (await import('../pdftext.js')).pdfToText(a.data) : await (await fetch(a.data)).text();
-        if (!text.trim()) { toast('PDF нема текст (вјероватно је скениран). Унесите вриједности ручно.', 'bad'); return; }
-        if (!(F.text || '').trim()) { F.text = text; $('#f-text').value = text; queue(); }
-        offerParsed(parseFindingText(text), 'датотеци');
+        const { pdfToText, isReadable } = await import('../pdftext.js');
+        const text = a.mime === 'application/pdf' ? await pdfToText(a.data) : await (await fetch(a.data)).text();
+        if (!text.trim()) return unreadable('Овај PDF не садржи текст — највјероватније је скениран или фотографисан налаз (слика).');
+        if (!isReadable(text)) return unreadable('Текст у овом PDF-у је записан фонтом без исправне ознаке слова, па се умјесто слова добијају симболи.');
+        // замијени ранији нечитљив текст (из старије верзије) новим, исправним
+        if (!(F.text || '').trim() || !isReadable(F.text)) { F.text = text; $('#f-text').value = text; queue(); }
+        const found = parseFindingText(text);
+        if (!found.length) return unreadable('Текст је прочитан, али у њему нису пронађени називи анализа које апликација познаје. Текст је уписан у поље „Текст налаза“ — пошаљите га за допуну препознавања (без имена клијента).', true);
+        offerParsed(found, 'датотеци');
       } catch (e) {
         console.error(e); toast('Датотеку није могуће прочитати: ' + (e?.message || e), 'bad');
       } finally { b.disabled = false; b.textContent = 'Прочитај вриједности'; }

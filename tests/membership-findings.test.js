@@ -205,3 +205,31 @@ describe('чланарина и налази у бази, увоз/извоз', 
   });
 });
 const t0 = '2026-10-05T10:00:00.000Z';
+
+describe('налази: скраћенице и нечитљив PDF текст', () => {
+  it('скраћени и енглески називи анализа', async () => {
+    const txt = `GLU   5.2   mmol/L   3.9 - 6.1
+CHOL  5,8  mmol/L  < 5,2
+TRIG  1,9  mmol/L  < 1,7
+HGB  145  g/L  130 - 170
+HbA1c  5,4  %  4,0 - 5,6
+CREA  88  µmol/L  62 - 106
+Fe  14  µmol/L  10 - 30`;
+    const r = Object.fromEntries(parseFindingText(txt).map((v) => [v.paramId, v]));
+    expect(r.glukoza).toMatchObject({ value: 5.2, refMin: 3.9, refMax: 6.1 });
+    expect(r.holesterol.value).toBe(5.8);
+    expect(r.trigliceridi).toMatchObject({ value: 1.9, refMax: 1.7 });
+    expect(r.hemoglobin.value).toBe(145);
+    expect(r.hba1c.value).toBe(5.4);
+    expect(r.kreatinin).toMatchObject({ value: 88, unit: 'µmol/L' });
+    expect(r.gvozdje.value).toBe(14);
+  });
+
+  it('препознаје нечитљив текст из PDF-а', async () => {
+    const { isReadable } = await import('../src/ui/pdftext.js');
+    expect(isReadable('Glukoza 5,4 mmol/L 3,9 - 6,1\nHolesterol 5,1')).toBe(true);
+    expect(isReadable('Глукоза 5,4 ммол/Л')).toBe(true);
+    expect(isReadable('  ')).toBe(false);
+    expect(isReadable('')).toBe(false);
+  });
+});

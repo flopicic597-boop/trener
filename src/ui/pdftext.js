@@ -2,6 +2,17 @@
 // Библиотека pdf.js се учитава тек када затреба. Скенирани налаз (слика у PDF-у) нема текст —
 // тада се вриједности уносе ручно.
 
+/**
+ * Да ли је извучени текст читљив. PDF без исправне ознаке слова у фонту даје низ
+ * симбола (често из „приватне“ зоне Unicode-а) — тада ни копирање из PDF прегледача не ради.
+ */
+export function isReadable(text) {
+  const chars = [...String(text || '').replace(/\s+/g, '')];
+  if (chars.length < 10) return false;
+  const good = chars.filter((c) => /[A-Za-zÀ-žЀ-ӿ0-9.,:;()%/<>=+\-–]/.test(c)).length;
+  return good / chars.length >= 0.6;
+}
+
 /** dataUrl → Uint8Array */
 export async function dataUrlBytes(dataUrl) {
   const blob = await (await fetch(dataUrl)).blob();
@@ -16,7 +27,13 @@ export async function pdfToText(dataUrl) {
   const pdfjs = await import('pdfjs-dist');
   const { default: workerUrl } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-  const task = pdfjs.getDocument({ data: await dataUrlBytes(dataUrl), isEvalSupported: false });
+  // табеле знакова и стандардни фонтови (public/pdfjs/) — потребни за PDF-ове са посебним
+  // фонтовима какве праве лабораторијски програми; без њих текст испадне као низ симбола
+  const base = new URL('pdfjs/', document.baseURI).href;
+  const task = pdfjs.getDocument({
+    data: await dataUrlBytes(dataUrl), isEvalSupported: false,
+    cMapUrl: base + 'cmaps/', cMapPacked: true, standardFontDataUrl: base + 'standard_fonts/',
+  });
   const doc = await task.promise;
   const lines = [];
   try {

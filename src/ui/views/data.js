@@ -7,6 +7,7 @@ import { loadDemo } from '../../data/demo.js';
 import { downloadText, shareText } from '../download.js';
 import { buildRows, exportCsv } from './overview.js';
 import { normalizeTempo } from '../../domain/rules.js';
+import { paymentsCsv, findingsCsv } from '../../io/csv.js';
 
 export async function render(main) {
   const [last, demoN, opts, snaps, persisted, est] = await Promise.all([
@@ -24,7 +25,7 @@ export async function render(main) {
 
     <section class="card pad stack">
       <h2>1. Резервна копија (JSON)</h2>
-      <p class="small">Садржи све клијенте, вјежбе, програме, тренинге, серије и изборне вриједности (UTF-8). Ова датотека служи и за пренос на компјутер.</p>
+      <p class="small">Садржи све клијенте, вјежбе, програме, тренинге, серије, уплате чланарине, налазе са приложеним датотекама и изборне вриједности (UTF-8). Приложени PDF-ови и слике повећавају величину датотеке. Ова датотека служи и за пренос на компјутер.</p>
       <div class="row"><button class="btn primary big" data-exp>Сачувај резервну копију</button><button class="btn big" data-share>Подијели датотеку…</button></div>
       <p class="small muted">„Сачувај“ спушта датотеку у фасциклу Преузимања (Download). „Подијели“ отвара Android дијељење (Quick Share, е-пошта, Google Drive…), ако га уређај подржава.</p>
     </section>
@@ -42,7 +43,7 @@ export async function render(main) {
     <section class="card pad stack">
       <h2>3. CSV за Excel</h2>
       <p class="small">UTF-8 са BOM ознаком (ћирилица исправна у Excel-у), раздвајач тачка-зарез, децимални зарез. За филтриран извоз користите дугмад у „Преглед по данима“.</p>
-      <div class="row"><button class="btn" data-csv="daily">Дневни преглед (сви тренинзи)</button><button class="btn" data-csv="sets">Детаљне серије (све)</button></div>
+      <div class="row"><button class="btn" data-csv="daily">Дневни преглед (сви тренинзи)</button><button class="btn" data-csv="sets">Детаљне серије (све)</button><button class="btn" data-csv2="pay">Уплате чланарине</button><button class="btn" data-csv2="find">Вриједности налаза</button></div>
     </section>
 
     <section class="card pad stack">
@@ -73,13 +74,16 @@ export async function render(main) {
         <div class="field"><label for="o-sleep">Брзи избор сна (сати)</label><input id="o-sleep" class="inp" name="sleepPresets" value="${opts.sleepPresets.map((v) => fmtNum(v)).join('; ')}"></div>
         <div class="field"><label for="o-dur">Брзо трајање (сек.)</label><input id="o-dur" class="inp" name="durationPresets" value="${opts.durationPresets.join('; ')}"></div>
         <div class="field full"><label for="o-goal">Циљеви клијената</label><input id="o-goal" class="inp" name="goalPresets" value="${esc(opts.goalPresets.join('; '))}"></div>
+        <div class="field"><label for="o-mm">Чланарина: трајање (мјесеци)</label><input id="o-mm" class="inp" name="membershipMonths" inputmode="numeric" value="${opts.membershipMonths ?? 1}"></div>
+        <div class="field"><label for="o-mp">Чланарина: износ (€, необавезно)</label><input id="o-mp" class="inp" name="membershipPrice" inputmode="decimal" value="${opts.membershipPrice === null || opts.membershipPrice === undefined ? '' : fmtNum(opts.membershipPrice)}"></div>
+        <div class="field"><label for="o-mw">Упозорење прије истека (дана)</label><input id="o-mw" class="inp" name="membershipWarnDays" inputmode="numeric" value="${opts.membershipWarnDays ?? 7}"></div>
         <div class="field full"><label for="o-cat">Категорије вјежби</label><input id="o-cat" class="inp" name="categories" value="${esc(opts.categories.join('; '))}"></div>
         <p class="err full" id="oerr"></p>
         <div class="full"><button class="btn primary" type="submit">Сачувај изборне вриједности</button></div>
       </form>
       <details><summary class="lbl" style="cursor:pointer">Шта могу сам да мијењам, а шта захтијева надоградњу?</summary>
         <div class="small stack" style="margin-top:8px">
-          <p><b>Сами, у апликацији (подаци):</b> клијенти, вјежбе (назив, категорија, начин мјерења), програми, тренинзи, брзе паузе/темпо/сан/трајање, циљеви и категорије.</p>
+          <p><b>Сами, у апликацији (подаци):</b> клијенти, вјежбе (назив, категорија, начин мјерења), програми, тренинзи, уплате и налази (уз своје параметре), брзе паузе/темпо/сан/трајање, циљеви, категорије и подешавања чланарине.</p>
           <p><b>Захтијева надоградњу кода:</b> нова поља (нпр. пулс, тјелесна мјерења), нове врсте графикона, облачна синхронизација, више тренера, PIN/шифровање. Надоградња користи миграције базе, па постојећи подаци остају.</p></div></details>
     </section>
 
@@ -102,6 +106,17 @@ export async function render(main) {
   main.querySelector('[data-imp]').onchange = (e) => readFile(e.target, (obj) => importFlow(obj, re));
   main.querySelector('[data-rep]').onchange = (e) => readFile(e.target, (obj) => replaceFlow(obj, re));
   main.querySelectorAll('[data-csv]').forEach((b) => (b.onclick = async () => { const { rows, exMap } = await buildRows({ client: '', from: '', to: '', program: '', status: '' }); exportCsv(b.dataset.csv, rows, exMap); }));
+  main.querySelectorAll('[data-csv2]').forEach((b) => (b.onclick = async () => {
+    const clients = new Map((await repo.listClients({ includeArchived: true })).map((c) => [c.id, fullName(c)]));
+    const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (b.dataset.csv2 === 'pay') {
+      const rows = (await repo.listPayments()).filter((p) => clients.has(p.clientId)).map((p) => ({ p, clientName: clients.get(p.clientId) }));
+      downloadText(paymentsCsv(rows), `trener-clanarine-${stamp}.csv`, 'text/csv;charset=utf-8');
+    } else {
+      const rows = (await repo.listFindings()).filter((f) => clients.has(f.clientId)).map((f) => ({ f, clientName: clients.get(f.clientId) }));
+      downloadText(findingsCsv(rows), `trener-nalazi-${stamp}.csv`, 'text/csv;charset=utf-8');
+    }
+  }));
   main.querySelectorAll('[data-sdl]').forEach((b) => (b.onclick = () => { const s = snaps.find((x) => x.id === b.dataset.sdl); downloadText(JSON.stringify(s.backup, null, 1), backupFileName(s.createdAt, 'trener-snimak')); }));
   main.querySelectorAll('[data-sres]').forEach((b) => (b.onclick = async () => {
     const s = snaps.find((x) => x.id === b.dataset.sres);
@@ -126,7 +141,11 @@ export async function render(main) {
       const tempos = split(fd.tempoPresets).map(normalizeTempo);
       if (tempos.some((t) => !t)) throw new Error('Темпо: свака вриједност мора имати четири броја, нпр. 3-1-1-0.');
       const cats = split(fd.categories); if (!cats.length) throw new Error('Потребна је бар једна категорија.');
-      await repo.saveOptions({ restPresets: nums(fd.restPresets, 'Паузе', 3600), tempoPresets: tempos, sleepPresets: nums(fd.sleepPresets, 'Сан', 24), durationPresets: nums(fd.durationPresets, 'Трајање', 86400), goalPresets: split(fd.goalPresets), categories: cats });
+      const mm = parseNum(fd.membershipMonths), mp = parseNum(fd.membershipPrice), mw = parseNum(fd.membershipWarnDays);
+      if (!Number.isInteger(mm) || mm < 1 || mm > 24) throw new Error('Трајање чланарине: цио број мјесеци од 1 до 24.');
+      if (Number.isNaN(mp) || (mp !== null && (mp < 0 || mp > 100000))) throw new Error('Износ чланарине: број или празно.');
+      if (!Number.isInteger(mw) || mw < 0 || mw > 60) throw new Error('Упозорење: цио број дана од 0 до 60.');
+      await repo.saveOptions({ membershipMonths: mm, membershipPrice: mp, membershipWarnDays: mw, restPresets: nums(fd.restPresets, 'Паузе', 3600), tempoPresets: tempos, sleepPresets: nums(fd.sleepPresets, 'Сан', 24), durationPresets: nums(fd.durationPresets, 'Трајање', 86400), goalPresets: split(fd.goalPresets), categories: cats });
       toast('Изборне вриједности су сачуване.'); re();
     } catch (err) { main.querySelector('#oerr').textContent = err.message; }
   };
@@ -161,8 +180,9 @@ async function importFlow(obj, done) {
   const ctx = { clientName: (id) => fullName(clients.get(id)), exName: (id) => exs.get(id)?.name || '?' };
   const LBL = { firstName: 'Име', lastName: 'Презиме', startDate: 'Почетак', goal: 'Циљ', note: 'Напомена', phone: 'Телефон', email: 'Е-пошта', archived: 'Архивиран', deleted: 'Обрисан',
     name: 'Назив', category: 'Категорија', type: 'Врста', date: 'Датум', time: 'Вријеме', programName: 'Програм', status: 'Статус', mood: 'Расположење', sleep: 'Сан',
-    reps: 'Понављања', weightKg: 'Кг', durationSec: 'Трајање (с)', tempo: 'Темпо', restSec: 'Пауза', done: 'Завршено', position: 'Редни број', planReps: 'План пон.', planWeightKg: 'План кг', planDurationSec: 'План трајања' };
-  const SKIP = ['id', 'createdAt', 'updatedAt', 'items', 'clientId', 'sessionId', 'sessionExerciseId', 'exerciseId', 'programId', 'demo', 'builtin'];
+    reps: 'Понављања', weightKg: 'Кг', durationSec: 'Трајање (с)', tempo: 'Темпо', restSec: 'Пауза', done: 'Завршено', position: 'Редни број', planReps: 'План пон.', planWeightKg: 'План кг', planDurationSec: 'План трајања',
+    paidDate: 'Датум уплате', amount: 'Износ', periodFrom: 'Плаћено од', periodTo: 'Плаћено до', method: 'Начин', kind: 'Врста', title: 'Назив налаза', size: 'Величина' };
+  const SKIP = ['data', 'values', 'text', 'findingId', 'mime', 'id', 'createdAt', 'updatedAt', 'items', 'clientId', 'sessionId', 'sessionExerciseId', 'exerciseId', 'programId', 'demo', 'builtin'];
   const fmtRec = (t, r, other) => {
     const keys = Object.keys(LBL).filter((k) => k in r && !SKIP.includes(k));
     // прво прикажи поља која се разликују

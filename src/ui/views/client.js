@@ -5,6 +5,8 @@ import { STATUS } from '../../domain/rules.js';
 import { clientForm } from './clients.js';
 import { scheduleDialog } from '../dialogs.js';
 import { renderClientProgress } from './progress.js';
+import { renderClientMembership, statusOf, statusChip } from './membership.js';
+import { renderClientFindings } from './findings.js';
 
 const st = { day: today(), month: monthStart(today()), cid: null };
 
@@ -12,13 +14,15 @@ export async function render(main, [id, tab = 'trening']) {
   const c = await repo.getClient(id);
   if (!c) { main.innerHTML = '<div class="wrap"><p class="empty card">Клијент није пронађен.</p></div>'; return; }
   if (st.cid !== id) { st.cid = id; st.day = today(); st.month = monthStart(today()); }
-  const TABS = [['trening', 'Календар и унос'], ['istorija', 'Историја'], ['programi', 'Програми'], ['napredak', 'Напредак']];
+  const TABS = [['trening', 'Календар и унос'], ['istorija', 'Историја'], ['programi', 'Програми'], ['napredak', 'Напредак'], ['clanarina', 'Чланарина'], ['nalazi', 'Налази']];
+  const [pays, opts] = await Promise.all([repo.listPayments({ clientId: id }), repo.getOptions()]);
+  const ms = statusOf(pays, opts);
   main.innerHTML = `<div class="wrap">
     <a href="#/klijenti" class="muted" style="text-decoration:none">← Сви клијенти</a>
     <div class="card pad"><div class="row" style="gap:16px">
       <div class="ava big">${esc(initials(c))}</div>
       <div style="flex:1 1 260px;min-width:0"><h1>${esc(fullName(c))}</h1>
-        <div class="row small muted">${c.archived ? '<span class="chip warn">Архивиран</span>' : ''}<span>Циљ: <b style="color:var(--fg)">${esc(c.goal || '—')}</b></span><span>Почетак: ${fmtDate(c.startDate)}</span>${c.phone ? `<span>Тел: ${esc(c.phone)}</span>` : ''}${c.email ? `<span>${esc(c.email)}</span>` : ''}</div>
+        <div class="row small muted">${c.archived ? '<span class="chip warn">Архивиран</span>' : ''}<a href="#/klijent/${id}/clanarina" style="text-decoration:none" title="Чланарина">${statusChip(ms)}</a><span>Циљ: <b style="color:var(--fg)">${esc(c.goal || '—')}</b></span><span>Почетак: ${fmtDate(c.startDate)}</span>${c.phone ? `<span>Тел: ${esc(c.phone)}</span>` : ''}${c.email ? `<span>${esc(c.email)}</span>` : ''}</div>
         ${c.note ? `<p class="small" style="margin-top:6px">${esc(c.note)}</p>` : ''}</div>
       <div class="row"><button class="btn" data-act="edit">Измијени</button>
         <button class="btn ${c.archived ? '' : 'danger'}" data-act="arch">${c.archived ? 'Врати из архиве' : 'Архивирај'}</button></div>
@@ -34,6 +38,8 @@ export async function render(main, [id, tab = 'trening']) {
   if (tab === 'istorija') return history(root, c);
   if (tab === 'programi') return programs(root, c);
   if (tab === 'napredak') return renderClientProgress(root, c.id);
+  if (tab === 'clanarina') return renderClientMembership(root, c);
+  if (tab === 'nalazi') return renderClientFindings(root, c);
   return calendar(root, c);
 }
 

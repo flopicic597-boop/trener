@@ -4,6 +4,11 @@
 import { uid, nowIso, today, sortBy } from '../lib/util.js';
 import { BUILTIN_EXERCISES } from './exercises-seed.js';
 import { DEFAULT_OPTIONS, validateClient, validateSession, validateSet, validateExercise, normalizeTempo } from '../domain/rules.js';
+import { validatePayment } from '../domain/membership.js';
+import { validateFinding } from '../domain/findings.js';
+
+/** Највећа величина једне приложене датотеке налаза */
+export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 
 export class ValidationError extends Error {
   constructor(errors) { super(Object.values(errors).join(' ')); this.errors = errors; this.name = 'ValidationError'; }
@@ -330,15 +335,71 @@ export function createRepo(db) {
       return { session: last, sets: sortBy(sets.filter((x) => x.sessionId === last.id && x.done === 1), 'position') };
     },
 
+
+    /* ---------------- чланарина (уплате) ---------------- */
+    async listPayments({ clientId } = {}) {
+      const all = (clientId ? await db.payments.where('clientId').equals(clientId).toArray() : await db.payments.toArray()).filter(live);
+      return all.sort((a, b) => (b.periodTo + b.paidDate).localeCompare(a.periodTo + a.paidDate));
+    },
+    async savePayment(data) {
+      const isNew = !data.id;
+      const base = isNew ? { id: uid(), clientId: null, paidDate: today(), amount: null, periodFrom: today(), periodTo: today(), method: 'cash', note: '' } : (await db.payments.get(data.id)) || {};
+      const p = { ...base, ...data, id: base.id || data.id };
+      p.note = (p.note || '').trim();
+      check(validatePayment(p));
+      return put('payments', p, isNew);
+    },
+    async deletePayment(id) { return patch('payments', id, { deleted: 1 }); },
+
+    /* ---------------- налази и анализе ---------------- */
+    async listFindings({ clientId } = {}) {
+      const all = (clientId ? await db.findings.where('clientId').equals(clientId).toArray() : await db.findings.toArray()).filter(live);
+      return all.sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
+    },
+    async getFinding(id) { const f = await db.findings.get(id); return live(f) ? f : null; },
+    async saveFinding(data) {
+      const isNew = !data.id;
+      const base = isNew ? { id: uid(), clientId: null, date: today(), kind: 'body', title: '', values: [], text: '', note: '' } : (await db.findings.get(data.id)) || {};
+      const f = { ...base, ...data, id: base.id || data.id };
+      f.values = (f.values || []).map((v) => ({ id: v.id || uid(), paramId: v.paramId || null, name: (v.name || '').trim(), unit: (v.unit || '').trim(), value: v.value ?? null, refMin: v.refMin ?? null, refMax: v.refMax ?? null }));
+      check(validateFinding(f));
+      return put('findings', JSON.parse(JSON.stringify(f)), isNew);
+    },
+    /** Брише налаз и његове прилоге (меко брисање, преноси се увозом) */
+    async deleteFinding(id) {
+      await db.transaction('rw', db.findings, db.attachments, async () => {
+        await patch('findings', id, { deleted: 1 });
+        for (const a of await db.attachments.where('findingId').equals(id).toArray()) if (!a.deleted) await put('attachments', { ...a, deleted: 1, data: '' });
+      });
+    },
+    /** Прилози без садржаја (брзо за списак) */
+    async listAttachments({ findingId, clientId } = {}) {
+      let all = findingId ? await db.attachments.where('findingId').equals(findingId).toArray() : clientId ? await db.attachments.where('clientId').equals(clientId).toArray() : await db.attachments.toArray();
+      return all.filter(live).map(({ data, ...meta }) => meta).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    },
+    async getAttachment(id) { const a = await db.attachments.get(id); return live(a) ? a : null; },
+    /** dataUrl: садржај датотеке као data: URL (чува се у бази и у резервној копији) */
+    async addAttachment({ findingId, name, mime, size, dataUrl }) {
+      const f = await repo.getFinding(findingId);
+      if (!f) throw new Error('Налаз не постоји.');
+      if (!size || size > MAX_ATTACHMENT_BYTES) throw new ValidationError({ size: `Датотека је превелика (највише ${MAX_ATTACHMENT_BYTES / 1048576} MB).` });
+      if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) throw new ValidationError({ data: 'Датотеку није могуће прочитати.' });
+      return put('attachments', { id: uid(), findingId, clientId: f.clientId, name: name || 'nalaz', mime: mime || 'application/octet-stream', size, data: dataUrl, note: '' }, true);
+    },
+    async deleteAttachment(id) {
+      const a = await db.attachments.get(id);
+      return put('attachments', { ...a, deleted: 1, data: '' });
+    },
+
     /* ---------------- пробни подаци ---------------- */
     async countDemo() {
       let n = 0;
-      for (const t of ['clients', 'programs', 'sessions']) n += (await db.table(t).toArray()).filter((r) => r.demo && !r.deleted).length;
+      for (const t of ['clients', 'programs', 'sessions', 'payments', 'findings']) n += (await db.table(t).toArray()).filter((r) => r.demo && !r.deleted).length;
       return n;
     },
     /** Трајно уклања САМО записе означене као пробни (demo: 1) */
     async removeDemo() {
-      const tables = ['clients', 'programs', 'sessions', 'sessionExercises', 'sets'];
+      const tables = ['clients', 'programs', 'sessions', 'sessionExercises', 'sets', 'payments', 'findings', 'attachments'];
       await db.transaction('rw', tables.map((t) => db.table(t)), async () => {
         for (const t of tables) {
           const ids = (await db.table(t).toArray()).filter((r) => r.demo).map((r) => r.id);

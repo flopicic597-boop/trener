@@ -12,10 +12,13 @@ import * as overview from './ui/views/overview.js';
 import * as progress from './ui/views/progress.js';
 import * as library from './ui/views/library.js';
 import * as data from './ui/views/data.js';
+import * as membership from './ui/views/membership.js';
+import * as findings from './ui/views/findings.js';
 import { esc } from './lib/util.js';
 
 const NAV = [
   ['klijenti', 'Клијенти', ICONS.users],
+  ['clanarine', 'Чланарине', ICONS.card],
   ['pregled', 'Преглед по данима', ICONS.cal],
   ['napredak', 'Напредак', ICONS.chart],
   ['programi', 'Програми', ICONS.list],
@@ -32,6 +35,8 @@ const ROUTES = {
   program: [programs.renderEditor, 'programi'],
   biblioteka: [library.render, 'biblioteka'],
   podaci: [data.render, 'podaci'],
+  clanarine: [membership.render, 'clanarine'],
+  nalaz: [findings.renderEditor, 'klijenti'],
 };
 
 function shell() {

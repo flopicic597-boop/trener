@@ -34,7 +34,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,mjs,css,html,png,svg,woff2}'],
+        // pdf.js (читање PDF налаза без интернета) је већи од подразумијеваних 2 MB
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         // при ПРВОЈ инсталацији SW одмах преузима страницу (рад без интернета без поновног учитавања);
         // касније верзије и даље чекају потврду корисника (registerType: 'prompt')

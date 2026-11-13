@@ -2,11 +2,14 @@
 import { repo, openModal, closeModal, toast, initials, fullName } from '../core.js';
 import { esc, fmtDate, normSearch, today, isValidDate } from '../../lib/util.js';
 import { STATUS } from '../../domain/rules.js';
+import { allStatuses, statusChip } from './membership.js';
 
 const st = { q: '', archived: false };
 
 export async function render(main) {
-  const [clients, sessions] = await Promise.all([repo.listClients({ includeArchived: true }), repo.listSessions()]);
+  const [clients, sessions, ms] = await Promise.all([repo.listClients({ includeArchived: true }), repo.listSessions(), allStatuses()]);
+  const mstat = new Map(ms.rows.map((r) => [r.c.id, r.s]));
+  const nExp = ms.rows.filter((r) => r.s.state === 'expired').length, nSoon = ms.rows.filter((r) => r.s.state === 'expiring').length;
   const last = new Map(), next = new Map();
   const t = today();
   for (const s of sessions) {
@@ -21,6 +24,7 @@ export async function render(main) {
   main.innerHTML = `<div class="wrap">
     <div class="phead"><div><div class="eyebrow">Евиденција</div><h1>Клијенти</h1></div>
       <button class="btn primary big" data-act="new">+ Нови клијент</button></div>
+    ${nExp || nSoon ? `<a class="banner ${nExp ? 'bad' : 'warn'}" href="#/clanarine" style="text-decoration:none;color:inherit"><div style="flex:1"><b>Чланарина:</b> ${nExp ? `истекла код ${nExp} ${nExp === 1 ? 'клијента' : 'клијената'}` : ''}${nExp && nSoon ? ', ' : ''}${nSoon ? `истиче ускоро код ${nSoon}` : ''}.</div><span class="btn sm">Прегледај</span></a>` : ''}
     <div class="card">
       <div class="pad toolbar">
         <div class="grow field"><label for="q">Претрага</label><input id="q" class="inp" type="search" placeholder="Име, презиме, циљ…" value="${esc(st.q)}" autocomplete="off"></div>
@@ -32,7 +36,7 @@ export async function render(main) {
           return `<a class="litem" href="#/klijent/${c.id}">
             <div class="ava">${esc(initials(c))}</div>
             <div class="grow"><b>${esc(fullName(c))}</b><small>${esc(c.goal || 'Без циља')} · од ${fmtDate(c.startDate)}</small></div>
-            <div class="small muted" style="text-align:right">${l ? `Посљедњи: ${fmtDate(l.date)} <span class="chip st-${l.status}">${STATUS[l.status]}</span>` : 'Нема тренинга'}${n ? `<br>Сљедећи: ${fmtDate(n.date)}` : ''}</div>
+            <div class="small muted" style="text-align:right">${mstat.get(c.id) && mstat.get(c.id).state !== 'active' ? statusChip(mstat.get(c.id)) + '<br>' : ''}${l ? `Посљедњи: ${fmtDate(l.date)} <span class="chip st-${l.status}">${STATUS[l.status]}</span>` : 'Нема тренинга'}${n ? `<br>Сљедећи: ${fmtDate(n.date)}` : ''}</div>
           </a>`;
         }).join('') : `<p class="empty">${st.q ? 'Нема клијената за ову претрагу.' : st.archived ? 'Архива је празна.' : 'Још нема клијената. Додајте првог дугметом „Нови клијент“ или учитајте пробне податке у одјељку „Подаци“.'}</p>`}
       </div>

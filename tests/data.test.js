@@ -192,7 +192,8 @@ describe('извоз и увоз', () => {
     const t = new Date().toISOString();
     const v = validateBackup({ format: FORMAT, formatVersion: 0, data: { settings: [{ id: 'settings', updatedAt: t }], clients: [{ id: 'c', updatedAt: t, firstName: 'А', lastName: 'Б' }] } });
     expect(v.ok).toBe(true);
-    expect(v.backup.formatVersion).toBe(1);
+    expect(v.backup.formatVersion).toBe(2);
+    expect(v.backup.data.payments).toEqual([]);
     expect(v.backup.data.options[0].deleted).toBe(0);
   });
 
@@ -244,7 +245,7 @@ describe('миграције базе', () => {
     const db = createDb(name);
     const repo = createRepo(db);
     await repo.init();
-    expect(db.verno).toBe(2);
+    expect(db.verno).toBe(3);
     const c = await db.clients.get('c1');
     expect(c).toMatchObject({ firstName: 'Стара', deleted: 0, createdAt: '2026-01-05T10:00:00.000Z' });
     expect((await db.exercises.get('my-ex')).type).toBe('load');

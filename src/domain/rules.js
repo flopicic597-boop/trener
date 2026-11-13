@@ -19,6 +19,9 @@ export const DEFAULT_OPTIONS = {
   durationPresets: [30, 45, 60, 90, 300, 600, 1200],
   goalPresets: ['Смањење тјелесне масе', 'Повећање снаге', 'Повећање мишићне масе', 'Рехабилитација', 'Општа кондиција', 'Припрема за такмичење'],
   categories: [...CATEGORIES],
+  membershipMonths: 1,     // подразумијевано трајање плаћеног периода (мјесеци)
+  membershipPrice: null,   // подразумијевани износ (€), празно = без приједлога
+  membershipWarnDays: 7,   // колико дана прије истека се приказује упозорење
 };
 
 export const TEMPO_HELP =

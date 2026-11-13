@@ -4,6 +4,8 @@ import { fmtNum, fmtDate } from '../lib/util.js';
 import { STATUS } from '../domain/rules.js';
 import { fmtTempo } from '../domain/rules.js';
 import { TYPE_LABEL } from '../data/exercises-seed.js';
+import { PAY_METHODS } from '../domain/membership.js';
+import { FINDING_KINDS, paramName, effRef, refStatus } from '../domain/findings.js';
 
 const BOM = '﻿';
 
@@ -30,4 +32,22 @@ export function setsCsv(rows) {
     r.set.position + 1, r.set.planReps, r.set.planWeightKg, r.set.planDurationSec, r.set.reps, r.set.durationSec, fmtTempo(r.set.tempo), r.set.restSec, r.set.weightKg,
     r.set.done ? 'да' : 'не', r.set.note || '',
   ]));
+}
+
+/** Уплате чланарине: један ред по уплати */
+export function paymentsCsv(rows) {
+  const header = ['Клијент', 'Датум уплате', 'Плаћено од', 'Плаћено до', 'Износ (€)', 'Начин', 'Напомена'];
+  return toCsv(header, rows.map((r) => [r.clientName, fmtDate(r.p.paidDate), fmtDate(r.p.periodFrom), fmtDate(r.p.periodTo), r.p.amount, PAY_METHODS[r.p.method] || '', r.p.note || '']));
+}
+
+/** Налази: један ред по измјереној вриједности */
+export function findingsCsv(rows) {
+  const header = ['Клијент', 'Датум', 'Врста', 'Назив налаза', 'Параметар', 'Вриједност', 'Јединица', 'Опсег од', 'Опсег до', 'Оцјена'];
+  const RS = { low: 'испод опсега', high: 'изнад опсега', ok: 'у опсегу' };
+  const out = [];
+  for (const r of rows) for (const v of r.f.values || []) {
+    const ref = effRef(v);
+    out.push([r.clientName, fmtDate(r.f.date), FINDING_KINDS[r.f.kind] || '', r.f.title || '', paramName(v), v.value, v.unit || '', ref.min, ref.max, RS[refStatus(v.value, ref)] || '']);
+  }
+  return toCsv(header, out);
 }

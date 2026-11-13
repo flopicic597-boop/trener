@@ -24,6 +24,14 @@ export const isValidTime = (s) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-
 /** Понедјељак седмице којој датум припада */
 export const weekStart = (s) => { const d = parseDate(s); const w = (d.getDay() + 6) % 7; d.setDate(d.getDate() - w); return isoDate(d); };
 export const monthStart = (s) => s.slice(0, 8) + '01';
+/** Додаје мјесеце; 31.01. + 1 мјесец = 28./29.02. (дан се своди на крај краћег мјесеца) */
+export const addMonths = (s, n) => {
+  const [y, m, d] = s.split('-').map(Number);
+  const t = new Date(y, m - 1 + n, 1);
+  const last = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+  t.setDate(Math.min(d, last));
+  return isoDate(t);
+};
 
 export const MONTHS = ['јануар', 'фебруар', 'март', 'април', 'мај', 'јун', 'јул', 'август', 'септембар', 'октобар', 'новембар', 'децембар'];
 export const MONTHS_CAP = MONTHS.map((m) => m[0].toUpperCase() + m.slice(1));

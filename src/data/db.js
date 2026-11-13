@@ -4,10 +4,10 @@
 import Dexie from 'dexie';
 
 export const DB_NAME = 'trener-evidencija';
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /** Табеле које се извозе/увозе и синхронизују по стабилном id-у */
-export const SYNC_TABLES = ['clients', 'exercises', 'programs', 'sessions', 'sessionExercises', 'sets', 'options'];
+export const SYNC_TABLES = ['clients', 'exercises', 'programs', 'sessions', 'sessionExercises', 'sets', 'options', 'payments', 'findings', 'attachments'];
 
 export const SCHEMA_V1 = {
   clients: 'id, updatedAt',
@@ -46,6 +46,14 @@ export function createDb(name = DB_NAME, opts = {}) {
         await tx.table('meta').delete('settings');
       }
     });
+
+  // Верзија 3: уплате чланарине, налази/анализе клијената и приложене датотеке налаза.
+  // Само нове табеле — постојећи подаци остају непромијењени.
+  db.version(3).stores({
+    payments: 'id, clientId, updatedAt',
+    findings: 'id, clientId, date, updatedAt',
+    attachments: 'id, findingId, clientId, updatedAt',
+  });
 
   return db;
 }

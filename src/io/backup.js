@@ -3,14 +3,17 @@
 import { SYNC_TABLES, SCHEMA_VERSION } from '../data/db.js';
 import { uid, nowIso, isValidDate } from '../lib/util.js';
 import { validateMood, validateSleep, SET_NUM_FIELDS, validateNonNeg } from '../domain/rules.js';
+import { validatePayment } from '../domain/membership.js';
+import { validateFinding } from '../domain/findings.js';
 
 export const FORMAT = 'trener-evidencija-backup';
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
 
 export const TABLE_LABEL = {
   clients: 'Клијенти', exercises: 'Вјежбе', programs: 'Програми', sessions: 'Тренинзи',
   sessionExercises: 'Вјежбе у тренинзима', sets: 'Серије', options: 'Изборне вриједности',
+  payments: 'Уплате чланарине', findings: 'Налази и анализе', attachments: 'Приложене датотеке налаза',
 };
 
 const baseKey = (t, id) => `${t}/${id}`;
@@ -66,6 +69,11 @@ export function migrateBackup(obj) {
     for (const t of Object.keys(b.data || {})) for (const r of b.data[t] || []) if (r.deleted === undefined) r.deleted = 0;
     b.formatVersion = 1;
   }
+  // formatVersion 1 → 2: додате табеле чланарине, налаза и прилога (у старим датотекама празне)
+  if (b.formatVersion === 1) {
+    if (b.data && typeof b.data === 'object') for (const t of ['payments', 'findings', 'attachments']) if (b.data[t] === undefined) b.data[t] = [];
+    b.formatVersion = 2;
+  }
   return b;
 }
 
@@ -115,6 +123,12 @@ export function validateBackup(obj) {
         }
         if (r.done !== 0 && r.done !== 1) errors.push(`${where}: неисправно поље „завршено“.`);
       }
+      if (t === 'payments') { const e = Object.values(validatePayment(r)); if (e.length) errors.push(`${where}: ${e[0]}`); }
+      if (t === 'findings') { const e = Object.values(validateFinding(r)); if (e.length) errors.push(`${where}: ${e[0]}`); }
+      if (t === 'attachments') {
+        if (!isStr(r.findingId) || !isStr(r.clientId)) errors.push(`${where}: недостаје веза.`);
+        if (typeof r.data !== 'string' || (r.deleted === 0 && !r.data.startsWith('data:'))) errors.push(`${where}: неисправан садржај датотеке.`);
+      }
     });
   }
   if (errors.length > 20) { const n = errors.length; errors.length = 20; errors.push(`… и још ${n - 20} грешака.`); }
@@ -136,6 +150,9 @@ export function describeRecord(t, r, ctx = {}) {
     case 'sessionExercises': return `Вјежба у тренингу${ctx.exName ? ': ' + ctx.exName(r.exerciseId) : ''}`;
     case 'sets': return `Серија ${(r.position ?? 0) + 1}${ctx.exName ? ' · ' + ctx.exName(r.exerciseId) : ''}`;
     case 'options': return 'Изборне вриједности';
+    case 'payments': return `Уплата ${r.paidDate} (${r.periodFrom} – ${r.periodTo})${ctx.clientName ? ' · ' + ctx.clientName(r.clientId) : ''}`;
+    case 'findings': return `Налаз ${r.date}${r.title ? ' „' + r.title + '“' : ''}${ctx.clientName ? ' · ' + ctx.clientName(r.clientId) : ''}`;
+    case 'attachments': return `Прилог „${r.name}“${ctx.clientName ? ' · ' + ctx.clientName(r.clientId) : ''}`;
     default: return r.id;
   }
 }

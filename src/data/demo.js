@@ -22,7 +22,7 @@ const CLIENTS = [
 export function buildDemo(now = today()) {
   const t = new Date().toISOString();
   const base = { createdAt: t, updatedAt: t, deleted: 0, demo: 1 };
-  const out = { clients: [], programs: [], sessions: [], sessionExercises: [], sets: [] };
+  const out = { clients: [], programs: [], sessions: [], sessionExercises: [], sets: [], payments: [], findings: [] };
   const progIds = {};
   for (const [k, tpl] of Object.entries(TPL)) {
     const id = uid(); progIds[k] = id;
@@ -41,6 +41,21 @@ export function buildDemo(now = today()) {
     const cid = uid();
     const start = addDays(now, -56);
     out.clients.push({ ...base, id: cid, firstName: c.firstName, lastName: c.lastName, startDate: start, goal: c.goal, note: c.note, phone: '', email: '', archived: 0 });
+    // чланарина: мјесечне уплате од почетка; трећи клијент није продужио (истекла), други истиче ускоро
+    const months = ci === 2 ? 1 : 2;
+    for (let mI = 0; mI < months; mI++) {
+      const from = addDays(start, mI * 30 + (ci === 1 ? 4 : 0)), to = addDays(from, 29);
+      out.payments.push({ ...base, id: uid(), clientId: cid, paidDate: from, amount: 35, periodFrom: from, periodTo: to, method: mI % 2 ? 'bank' : 'cash', note: '' });
+    }
+    // мјерења тијела на почетку и послије 7 седмица
+    const m0 = { tezina: [92, 68, 81][ci], mast: [29, 24, 21][ci], misici: [33, 26, 34][ci], struk: [101, 74, 88][ci], puls: [78, 66, 70][ci] };
+    const dm = { tezina: [-4.2, 0.6, -0.8][ci], mast: [-2.4, -1.1, 0.7][ci], misici: [0.4, 1.0, -0.3][ci], struk: [-5, 0, -1][ci], puls: [-6, -3, 4][ci] };
+    const UNIT = { tezina: 'kg', mast: '%', misici: 'kg', struk: 'cm', puls: 'отк/мин' };
+    const NAME = { tezina: 'Тјелесна маса', mast: 'Тјелесна маст', misici: 'Мишићна маса', struk: 'Обим струка', puls: 'Пулс у мировању' };
+    [0, 49].forEach((off, k) => out.findings.push({ ...base, id: uid(), clientId: cid, date: addDays(start, off), kind: 'body', title: k ? 'Контролно мјерење' : 'Иницијално мјерење', text: '', note: '',
+      values: Object.keys(m0).map((pid) => ({ id: uid(), paramId: pid, name: NAME[pid], unit: UNIT[pid], value: Math.round((m0[pid] + (k ? dm[pid] : 0)) * 10) / 10, refMin: null, refMax: null })) }));
+    if (ci === 0) out.findings.push({ ...base, id: uid(), clientId: cid, date: addDays(start, 3), kind: 'lab', title: 'Биохемија', text: '', note: 'Пробни налаз.',
+      values: [{ id: uid(), paramId: 'glukoza', name: 'Глукоза (наташте)', unit: 'mmol/L', value: 6.4, refMin: 3.9, refMax: 6.1 }, { id: uid(), paramId: 'holesterol', name: 'Укупни холестерол', unit: 'mmol/L', value: 5.9, refMin: null, refMax: 5.2 }] });
     let n = 0;
     for (let d = 0; d <= 57; d++) {
       const date = addDays(start, d);
@@ -86,7 +101,7 @@ export function buildDemo(now = today()) {
 
 export async function loadDemo(db) {
   const d = buildDemo();
-  await db.transaction('rw', ['clients', 'programs', 'sessions', 'sessionExercises', 'sets'].map((t) => db.table(t)), async () => {
+  await db.transaction('rw', ['clients', 'programs', 'sessions', 'sessionExercises', 'sets', 'payments', 'findings'].map((t) => db.table(t)), async () => {
     for (const [t, rows] of Object.entries(d)) await db.table(t).bulkAdd(rows);
   });
   return d;

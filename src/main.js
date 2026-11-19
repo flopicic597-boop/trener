@@ -20,6 +20,7 @@ import * as data from './ui/views/data.js';
 import * as membership from './ui/views/membership.js';
 import * as findings from './ui/views/findings.js';
 import { esc } from './lib/util.js';
+import * as cloud from './sync/auto.js';
 
 /** Лого: хексагон и тег, у истом стилу као икона апликације */
 export const LOGO = '<svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--p1)"/><stop offset="1" style="stop-color:var(--p2)"/></linearGradient></defs><path d="M24 3.5 41.8 13.75v20.5L24 44.5 6.2 34.25v-20.5Z" fill="none" stroke="url(#lg)" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 24h26" stroke="url(#lg)" stroke-width="1.8" stroke-linecap="round"/><path d="M18.5 16v16M29.5 16v16" stroke="url(#lg)" stroke-width="4.6" stroke-linecap="round"/><path d="M14 20v8M34 20v8" stroke="url(#lg)" stroke-width="3" stroke-linecap="round"/></svg>';
@@ -57,6 +58,7 @@ function shell() {
         <button id="theme">Тема: аутоматски</button><div>Ради без интернета. Подаци остају на овом уређају.</div></div>
     </aside>
     <main class="main" id="main" tabindex="-1"></main></div>
+    <div id="syncbar" class="syncbar" hidden></div>
     <div id="savebar" class="savebar" role="status" aria-live="polite"><span class="dot"></span><span class="txt">Сви подаци су сачувани</span></div>
     <div id="update" class="banner warn" hidden style="position:fixed;left:12px;right:12px;bottom:64px;z-index:45;max-width:640px;margin:auto"></div>`;
 }
@@ -112,6 +114,25 @@ function setupUpdates() {
   });
 }
 
+/* Аутоматски пренос: ознака стања и освјежавање приказа када стигну измјене са другог уређаја */
+function setupSync() {
+  const bar = document.getElementById('syncbar');
+  const hhmm = (iso) => { const d = new Date(iso); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  document.addEventListener('sync-status', (e) => {
+    const s = e.detail;
+    bar.hidden = s.phase !== 'ready' && !s.error;
+    bar.className = 'syncbar' + (s.error ? ' bad' : s.running ? ' busy' : '');
+    bar.textContent = s.error ? '☁ пренос: грешка' : s.running ? '☁ пренос…' : s.last ? '☁ ' + hhmm(s.last) : '☁';
+    bar.title = s.error || (s.last ? 'Посљедњи аутоматски пренос: ' + new Date(s.last).toLocaleString('sr') : '');
+  });
+  bar.onclick = () => { location.hash = '#/podaci'; };
+  document.addEventListener('sync-applied', () => {
+    const busy = document.querySelector('.modal-bg') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || hasUnsaved();
+    if (!busy) route(); else toast('Стигле су измјене са другог уређаја — приказ ће се освјежити при сљедећем отварању странице.');
+  });
+  cloud.start();
+}
+
 window.addEventListener('beforeunload', (e) => { if (hasUnsaved()) { e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSaves(); });
 document.addEventListener('backup-done', refreshBackupInfo);
@@ -131,4 +152,5 @@ document.addEventListener('backup-done', refreshBackupInfo);
   await route();
   refreshBackupInfo();
   if (import.meta.env.PROD) setupUpdates();
+  setupSync();
 })();

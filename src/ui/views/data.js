@@ -8,6 +8,8 @@ import { downloadText, shareText } from '../download.js';
 import { buildRows, exportCsv } from './overview.js';
 import { normalizeTempo } from '../../domain/rules.js';
 import { paymentsCsv, findingsCsv } from '../../io/csv.js';
+import { syncSection, bindSync } from './syncpanel.js';
+import { resetScan } from '../../sync/engine.js';
 
 export async function render(main) {
   const [last, demoN, opts, snaps, persisted, est] = await Promise.all([
@@ -22,6 +24,8 @@ export async function render(main) {
     <div class="banner ${!last || age > 7 ? 'warn' : 'info'}"><div>
       <b>Посљедња резервна копија: ${last ? fmtDateTime(last) : 'још није направљена'}</b>${age > 7 ? ` (прије ${age} дана)` : ''}<br>
       <span class="small">Подаци се чувају само локално у овом прегледачу на овом уређају. <b>Локално чување није резервна копија</b>: брисање података апликације или прегледача, деинсталација или квар уређаја трајно уклањају записе. Редовно правите JSON копију и сачувајте је ван уређаја.</span></div></div>
+
+    ${syncSection()}
 
     <section class="card pad stack" id="look">
       <h2>Изглед</h2>
@@ -98,6 +102,7 @@ export async function render(main) {
   </div>`;
 
   const re = () => render(main);
+  bindSync(main);
   main.querySelectorAll('[data-theme-set]').forEach((b) => (b.onclick = () => { applyLook({ theme: b.dataset.themeSet }); main.querySelectorAll('[data-theme-set]').forEach((x) => x.classList.toggle('on', x === b)); }));
   main.querySelectorAll('[data-accent-set]').forEach((b) => (b.onclick = () => { applyLook({ accent: b.dataset.accentSet }); main.querySelectorAll('[data-accent-set]').forEach((x) => x.classList.toggle('on', x === b)); }));
   const doExport = async (share) => {
@@ -226,6 +231,7 @@ async function importFlow(obj, done) {
     try {
       await createSnapshot(db, 'Прије увоза датотеке од ' + fmtDateTime(b.exportedAt));
       const r = await applyImport(db, b, an, resolutions);
+      await resetScan(db); // увезени записи иду и на аутоматски пренос
       closeModal(); toast(`Увоз је завршен. Уписано записа: ${r.written}.`); done();
     } catch (err) {
       m.querySelector('#iok').disabled = false;
@@ -240,6 +246,6 @@ async function replaceFlow(obj, done) {
   if (!v.ok) return showErrors(v.errors);
   const c = v.backup.counts || {};
   if (!(await confirmDlg(`Замијенити СВЕ податке на овом уређају садржајем датотеке од ${fmtDateTime(v.backup.exportedAt)} (клијената: ${c.clients ?? '?'}, тренинга: ${c.sessions ?? '?'})? Прије замјене се прави локални снимак.`, { okText: 'Замијени све', danger: true }))) return;
-  const ok = await save(async () => { await createSnapshot(db, 'Прије потпуне замјене'); await replaceAll(db, v.backup); await repo.init(); return true; });
+  const ok = await save(async () => { await createSnapshot(db, 'Прије потпуне замјене'); await replaceAll(db, v.backup); await repo.init(); await resetScan(db); return true; });
   if (ok) { toast('Подаци су замијењени садржајем датотеке.'); done(); }
 }

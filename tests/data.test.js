@@ -245,7 +245,7 @@ describe('миграције базе', () => {
     const db = createDb(name);
     const repo = createRepo(db);
     await repo.init();
-    expect(db.verno).toBe(3);
+    expect(db.verno).toBe(4);
     const c = await db.clients.get('c1');
     expect(c).toMatchObject({ firstName: 'Стара', deleted: 0, createdAt: '2026-01-05T10:00:00.000Z' });
     expect((await db.exercises.get('my-ex')).type).toBe('load');

@@ -32,6 +32,7 @@ export async function save(fn, { quiet = false } = {}) {
   try {
     const r = await fn();
     lastError = null;
+    document.dispatchEvent(new Event('data-changed')); // аутоматски пренос убрзо шаље измјену
     return r;
   } catch (e) {
     lastError = e instanceof ValidationError ? e.message : (e?.message || String(e));

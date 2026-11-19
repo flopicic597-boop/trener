@@ -4,7 +4,7 @@
 import Dexie from 'dexie';
 
 export const DB_NAME = 'trener-evidencija';
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Табеле које се извозе/увозе и синхронизују по стабилном id-у */
 export const SYNC_TABLES = ['clients', 'exercises', 'programs', 'sessions', 'sessionExercises', 'sets', 'options', 'payments', 'findings', 'attachments'];
@@ -54,6 +54,9 @@ export function createDb(name = DB_NAME, opts = {}) {
     findings: 'id, clientId, date, updatedAt',
     attachments: 'id, findingId, clientId, updatedAt',
   });
+
+  // Верзија 4: основа за аутоматску синхронизацију са сервером (који запис је у којој верзији на серверу).
+  db.version(4).stores({ cloudBase: 'key' });
 
   return db;
 }

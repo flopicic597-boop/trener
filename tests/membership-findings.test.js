@@ -197,7 +197,7 @@ describe('чланарина и налази у бази, увоз/извоз', 
     const db = createDb(name);
     const repo = createRepo(db);
     await repo.init();
-    expect(db.verno).toBe(3);
+    expect(db.verno).toBe(4);
     expect((await repo.getClient('c1')).firstName).toBe('Стара');
     expect((await repo.getSession('s1')).mood).toBe(5);
     expect(await repo.listPayments({ clientId: 'c1' })).toEqual([]);

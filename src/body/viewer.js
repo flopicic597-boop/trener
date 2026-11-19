@@ -3,11 +3,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildBody } from './model.js';
+import { loadHumanData } from './human.js';
 import { MARK_TYPES } from '../data/body-zones.js';
 
 const css = (name, fallback) => (getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback);
 
-export function createBodyViewer(container, { sex = 'm', layer = 'muscle', marks = [], onPick } = {}) {
+export async function createBodyViewer(container, { sex = 'm', layer = 'muscle', marks = [], onPick } = {}) {
   const w = () => Math.max(200, container.clientWidth), h = () => Math.max(260, container.clientHeight);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -27,33 +28,40 @@ export function createBodyViewer(container, { sex = 'm', layer = 'muscle', marks
   controls.minPolarAngle = 0.2; controls.maxPolarAngle = Math.PI - 0.2;
   controls.update();
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 1.4));
-  const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(1.5, 3, 2.5); scene.add(key);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 1.0));
+  const key = new THREE.DirectionalLight(0xffffff, 1.9); key.position.set(2.2, 2.6, 2.0); scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffeedd, 0.5); fill.position.set(-2, 1, 2); scene.add(fill);
   const rim = new THREE.DirectionalLight(0x88ccff, 1.0); rim.position.set(-2, 1.5, -2.5); scene.add(rim);
   // постоље (холограмски круг)
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.45, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(css('--p1', '#22d3ee')), transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2; scene.add(ring);
 
   let body = null, state = { sex, layer, marks, selected: null };
-  const palette = () => ({ muscle: '#c93a52', joint: '#f5b84a', bone: '#e8e2d4', fascia: css('--p1', '#22d3ee'), skin: css('--p2', '#a78bfa') });
+  const palette = () => ({ muscle: '#c23a4e', joint: '#f5b84a', bone: '#e8e2d4', fascia: css('--p1', '#22d3ee'), skin: css('--p2', '#a78bfa'), skinSolid: '#c9a58f' });
 
   function build() {
     if (body) { scene.remove(body.root); body.root.traverse((o) => { if (o.isMesh) { o.geometry?.dispose?.(); } }); }
-    body = buildBody(state.sex, palette());
+    body = buildBody(state.sex, palette(), data);
     scene.add(body.root);
     applyLayer(); paint();
   }
   function applyLayer() {
     for (const k of ['muscle', 'skeleton', 'fascia']) body.layers[k].visible = state.layer === k;
-    body.layers.skin.visible = true;
-    body.layers.skin.traverse((o) => { if (o.isMesh) o.material.opacity = state.layer === 'skeleton' ? 0.1 : 0.16; });
+    body.layers.skin.visible = state.layer !== 'muscle';
+    body.layers.skin.traverse((o) => { if (o.isMesh) o.material.opacity = state.layer === 'skeleton' ? 0.12 : 0.2; });
     ring.material.color.set(css('--p1', '#22d3ee'));
   }
   /** Боје: ознака клијента (бол/повреда/…) > изабрана зона > основна боја слоја */
   function paint() {
     const base = palette();
     const markOf = new Map(state.marks.filter((m) => m.active !== 0).map((m) => [m.zone + '|' + (m.side || 'C'), m]));
-    for (const layer of ['muscle', 'skeleton', 'fascia']) {
+    // мишићи: боје по тачкама површине
+    body.paintMuscle((zone, side) => {
+      const mk = markOf.get(zone + '|' + side) || markOf.get(zone + '|C');
+      const sel = state.selected && state.selected.zone === zone && (state.selected.side === side || side === 'C');
+      return { color: mk ? new THREE.Color(MARK_TYPES[mk.type]?.color || '#ffffff') : null, dim: !!state.selected && !sel && !mk, glow: sel };
+    });
+    for (const layer of ['skeleton', 'fascia']) {
       for (const m of body.pickables[layer]) {
         const { zone, side } = m.userData;
         const mk = markOf.get(zone + '|' + side) || markOf.get(zone + '|C');
@@ -82,11 +90,12 @@ export function createBodyViewer(container, { sex = 'm', layer = 'muscle', marks
     ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ptr, camera);
     const hit = ray.intersectObjects(body.pickables[state.layer], false)[0];
-    state.selected = hit ? { zone: hit.object.userData.zone, side: hit.object.userData.side } : null;
+    state.selected = !hit ? null : hit.object.userData.zoneAt ? hit.object.userData.zoneAt(hit.face) : { zone: hit.object.userData.zone, side: hit.object.userData.side };
     paint();
     onPick?.(state.selected);
   });
 
+  const data = await loadHumanData();
   const ro = new ResizeObserver(() => { renderer.setSize(w(), h()); camera.aspect = w() / h(); camera.updateProjectionMatrix(); render(); });
   ro.observe(container);
   build();

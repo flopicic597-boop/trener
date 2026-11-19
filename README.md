@@ -56,3 +56,7 @@ npm run preview
 | Р§РёС‚Р°СљРµ PDF РЅР°Р»Р°Р·Р° | [pdf.js 6.4](https://mozilla.github.io/pdf.js/) | СЂР°РґРё РЅР° СѓСЂРµС’Р°ССѓ, РґР°С‚РѕС‚РµРєР° СЃРµ РЅРµ С€Р°С™Рµ РЅРёРєСѓРґ |
 | РўРµСЃС‚РѕРІРё | Vitest 5 + fake-indexeddb | С‚РµСЃС‚РѕРІРё Р±Р°Р·Рµ Сѓ Node-Сѓ |
 | Р¤РѕРЅС‚ | Roboto Condensed (С›РёСЂРёР»РёС†Р°, СѓРіСЂР°С’РµРЅ) | РёСЃС‚Рё РёР·РіР»РµРґ Р±РµР· РёРЅС‚РµСЂРЅРµС‚Р° |
+
+## Извори
+
+- Модел људског тијела (мушко и женско): MakeHuman base mesh и macro targets, CC0 1.0 Universal — `public/body/human.bin` прави `scripts/build-body-mesh.mjs`.

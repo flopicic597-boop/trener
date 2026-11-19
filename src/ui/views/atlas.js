@@ -12,7 +12,7 @@ const st = { sex: 'm', layer: 'muscle', sel: null, cid: null };
 async function mountViewer(box, opts) {
   try {
     const { createBodyViewer } = await import('../../body/viewer.js');
-    return createBodyViewer(box, opts);
+    return await createBodyViewer(box, opts);
   } catch (e) {
     console.error(e);
     box.innerHTML = '<p class="empty">3Д приказ није доступан на овом уређају (WebGL). Зоне можете бирати са списка испод.</p>';

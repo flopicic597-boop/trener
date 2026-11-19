@@ -2,26 +2,11 @@
 // Три слоја зона: мишићи, скелет и зглобови, фасцијални ланци. Свака зона је засебан
 // mesh са userData {zone, side} за избор додиром. Јединице: метри, y нагоре, лице ка +z.
 import * as THREE from 'three';
+import { buildHuman, skeletonOf } from './human.js';
+import { ZONE } from '../data/body-zones.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
-
-/** Пропорције тијела */
-function proportions(sex) {
-  const f = sex === 'f';
-  return {
-    f,
-    head: { y: f ? 1.6 : 1.66, r: f ? 0.098 : 0.105 },
-    neck: [f ? 1.43 : 1.47, f ? 1.52 : 1.56],
-    shoulder: { x: f ? 0.175 : 0.2, y: f ? 1.39 : 1.43 },
-    chest: { y: f ? 1.27 : 1.3, rx: f ? 0.145 : 0.17, ry: f ? 0.15 : 0.17, rz: f ? 0.1 : 0.11 },
-    waist: { y: f ? 1.09 : 1.1, rx: f ? 0.11 : 0.135, rz: f ? 0.085 : 0.095 },
-    pelvis: { y: f ? 0.93 : 0.95, rx: f ? 0.175 : 0.155, ry: 0.1, rz: f ? 0.115 : 0.105 },
-    elbow: { x: f ? 0.22 : 0.25, y: f ? 1.12 : 1.15 }, wrist: { x: f ? 0.255 : 0.29, y: f ? 0.88 : 0.9 }, hand: { x: f ? 0.27 : 0.31, y: f ? 0.79 : 0.8 },
-    hip: { x: f ? 0.095 : 0.09, y: f ? 0.91 : 0.93 }, knee: { x: f ? 0.09 : 0.1, y: 0.5 }, ankle: { x: 0.1, y: 0.08 },
-    arm: f ? [0.04, 0.032] : [0.047, 0.038], leg: f ? [0.075, 0.048] : [0.076, 0.052],
-  };
-}
 
 /* ---------------------- помоћне функције за облике ---------------------- */
 const sphereGeo = new THREE.SphereGeometry(1, 32, 22);
@@ -50,8 +35,8 @@ function tube(mat, pts, r = 0.009) {
  * Враћа { root, layers: {skin, muscle, skeleton, fascia}, pickables: {muscle:[], skeleton:[], fascia:[]} }
  * palette: { muscle, bone, joint, fascia, skin } боје
  */
-export function buildBody(sex, palette) {
-  const P = proportions(sex);
+export function buildBody(sex, palette, data) {
+  const { J, P } = skeletonOf(data, sex);
   const root = new THREE.Group();
   const layers = { skin: new THREE.Group(), muscle: new THREE.Group(), skeleton: new THREE.Group(), fascia: new THREE.Group() };
   Object.values(layers).forEach((g) => root.add(g));
@@ -72,79 +57,44 @@ export function buildBody(sex, palette) {
     for (const m of meshes) { m.material = mat; m.userData = { zone: id, side, layer }; layers[layer].add(m); pickables[layer].push(m); }
   };
 
-  // кључне тачке
   // Модел гледа ка камери (+z): лијева страна особе је на десној страни гледаоца (+x).
-  const J = {};
-  for (const s of ['L', 'R']) {
-    const sg = s === 'L' ? 1 : -1;
-    J[s] = {
-      sh: V(sg * P.shoulder.x, P.shoulder.y, 0), el: V(sg * P.elbow.x, P.elbow.y, -0.01), wr: V(sg * P.wrist.x, P.wrist.y, 0.02), ha: V(sg * P.hand.x, P.hand.y, 0.03),
-      hip: V(sg * P.hip.x, P.hip.y, 0), kn: V(sg * P.knee.x, P.knee.y, 0.01), an: V(sg * P.ankle.x, P.ankle.y, -0.01), sg,
-    };
-  }
 
-  /* ---------- кожа (провидни „холограм“) ---------- */
-  const skin = layers.skin;
-  skin.add(ellipsoid(skinMat, V(0, P.head.y, 0), [P.head.r, P.head.r * 1.18, P.head.r * 1.08]));
-  skin.add(segment(skinMat, V(0, P.neck[0], -0.01), V(0, P.neck[1], -0.005), 0.052));
-  skin.add(ellipsoid(skinMat, V(0, P.chest.y, 0), [P.chest.rx, P.chest.ry, P.chest.rz]));
-  skin.add(ellipsoid(skinMat, V(0, P.waist.y, 0), [P.waist.rx, 0.12, P.waist.rz]));
-  skin.add(ellipsoid(skinMat, V(0, P.pelvis.y, 0), [P.pelvis.rx, P.pelvis.ry, P.pelvis.rz]));
-  if (P.f) for (const x of [0.072, -0.072]) skin.add(ellipsoid(skinMat, V(x, P.chest.y + 0.01, 0.085), [0.058, 0.055, 0.05]));
-  for (const s of ['L', 'R']) {
-    const j = J[s];
-    skin.add(segment(skinMat, j.sh, j.el, P.arm[0]), segment(skinMat, j.el, j.wr, P.arm[1]), segment(skinMat, j.wr, j.ha, 0.03));
-    skin.add(segment(skinMat, j.hip, j.kn, P.leg[0]), segment(skinMat, j.kn, j.an, P.leg[1]));
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.06, 0.24), skinMat); foot.position.set(j.an.x, 0.035, 0.06); skin.add(foot);
-  }
-
-  /* ---------- мишићи (обликовани из више дијелова, као праве главе мишића) ---------- */
-  const fz = P.f ? 0.92 : 1; // жене: нешто мањи обим мишића
-  const at = (a, b, t) => a.clone().lerp(b, t);
-  zone('muscle', 'neck', 'C',
-    segment(null, V(0.025, P.neck[0] - 0.01, 0.02), V(0.012, P.neck[1], 0.035), 0.022 * fz), segment(null, V(-0.025, P.neck[0] - 0.01, 0.02), V(-0.012, P.neck[1], 0.035), 0.022 * fz),
-    segment(null, V(0, P.neck[0] - 0.01, -0.02), V(0, P.neck[1], -0.02), 0.035 * fz));
-  zone('muscle', 'traps', 'C',
-    ellipsoid(null, V(0.07, P.shoulder.y + 0.015, -0.035), [0.08 * fz, 0.035, 0.045], [0, 0, -0.35]), ellipsoid(null, V(-0.07, P.shoulder.y + 0.015, -0.035), [0.08 * fz, 0.035, 0.045], [0, 0, 0.35]),
-    ellipsoid(null, V(0, P.chest.y - 0.02, -0.098), [0.06, 0.14, 0.025]));
-  zone('muscle', 'upperback', 'C', ellipsoid(null, V(0.055, P.chest.y + 0.02, -0.1), [0.045 * fz, 0.07, 0.022], [0, 0, 0.3]), ellipsoid(null, V(-0.055, P.chest.y + 0.02, -0.1), [0.045 * fz, 0.07, 0.022], [0, 0, -0.3]));
-  zone('muscle', 'erectors', 'C', ellipsoid(null, V(0.028, P.waist.y - 0.01, -P.waist.rz + 0.005), [0.026, 0.17, 0.028]), ellipsoid(null, V(-0.028, P.waist.y - 0.01, -P.waist.rz + 0.005), [0.026, 0.17, 0.028]));
-  const absParts = [];
-  for (const [dy, r] of [[0.105, 0.026], [0.05, 0.028], [-0.005, 0.028]]) for (const x of [0.03, -0.03]) absParts.push(ellipsoid(null, V(x, P.waist.y + dy, P.waist.rz + 0.004), [0.027 * fz, r, 0.018]));
-  absParts.push(ellipsoid(null, V(0, P.waist.y - 0.075, P.waist.rz - 0.004), [0.055 * fz, 0.05, 0.02]));
-  zone('muscle', 'abs', 'C', ...absParts);
-  for (const s of ['L', 'R']) {
-    const j = J[s], sg = j.sg;
-    zone('muscle', 'delts', s,
-      ellipsoid(null, j.sh.clone().add(V(sg * 0.005, -0.02, 0.03)), [0.035 * fz, 0.065, 0.035]),
-      ellipsoid(null, j.sh.clone().add(V(sg * 0.025, -0.02, 0)), [0.035 * fz, 0.07, 0.04]),
-      ellipsoid(null, j.sh.clone().add(V(sg * 0.005, -0.02, -0.03)), [0.035 * fz, 0.065, 0.035]));
-    zone('muscle', 'rotator', s, ellipsoid(null, V(sg * 0.1, P.chest.y + 0.045, -0.1), [0.06 * fz, 0.05, 0.02], [0, 0, sg * 0.3]));
-    zone('muscle', 'pecs', s,
-      ellipsoid(null, V(sg * 0.07, P.chest.y + 0.075, P.chest.rz - 0.025), [0.07 * fz, 0.028, 0.03], [0, 0, sg * -0.15]),
-      ellipsoid(null, V(sg * 0.072, P.chest.y + 0.025, P.chest.rz - 0.02), [0.082 * fz, 0.05, 0.035], [0, 0, sg * -0.2]));
-    zone('muscle', 'biceps', s, ellipsoid(null, at(j.sh, j.el, 0.55).add(V(0, 0, 0.024)), [0.027 * fz, 0.09, 0.027 * fz]));
-    zone('muscle', 'triceps', s, ellipsoid(null, at(j.sh, j.el, 0.45).add(V(sg * 0.01, 0, -0.026)), [0.026 * fz, 0.1, 0.026]), ellipsoid(null, at(j.sh, j.el, 0.5).add(V(-sg * 0.012, 0, -0.024)), [0.022 * fz, 0.085, 0.024]));
-    zone('muscle', 'forearm', s, segment(null, j.el, j.wr, 0.026 * fz, 0.05, 0.75, V(sg * 0.01, 0, 0.01)), segment(null, j.el, j.wr, 0.024 * fz, 0.05, 0.7, V(-sg * 0.01, 0, -0.008)));
-    zone('muscle', 'obliques', s, ellipsoid(null, V(sg * (P.waist.rx - 0.025), P.waist.y + 0.03, 0.04), [0.035, 0.11, 0.055], [0, 0, sg * 0.12]));
-    zone('muscle', 'lats', s, ellipsoid(null, V(sg * 0.1, P.chest.y - 0.07, -0.072), [0.062 * fz, 0.14, 0.03], [0.1, sg * 0.25, sg * 0.28]));
-    zone('muscle', 'glutemax', s, ellipsoid(null, V(sg * 0.072, P.pelvis.y - 0.045, -P.pelvis.rz + 0.02), [0.08, 0.09, 0.06 * (P.f ? 1.12 : 1)], [0, 0, sg * -0.15]));
-    zone('muscle', 'glutemed', s, ellipsoid(null, V(sg * (P.pelvis.rx - 0.025), P.pelvis.y + 0.025, -0.025), [0.04, 0.055, 0.055]));
-    zone('muscle', 'hipflex', s, ellipsoid(null, V(sg * 0.07, P.pelvis.y - 0.025, P.pelvis.rz - 0.012), [0.035, 0.06, 0.022], [0, 0, sg * 0.3]));
-    zone('muscle', 'quads', s,
-      segment(null, j.hip, j.kn, 0.034 * fz, 0.1, 0.85, V(0, 0, 0.042)),                      // прави бутни
-      segment(null, j.hip, j.kn, 0.04 * fz, 0.18, 0.88, V(sg * 0.03, 0, 0.012)),              // спољни широки
-      ellipsoid(null, at(j.hip, j.kn, 0.8).add(V(-sg * 0.03, 0, 0.022)), [0.03 * fz, 0.06, 0.028]));  // унутрашњи широки („суза“)
-    zone('muscle', 'hams', s, segment(null, j.hip, j.kn, 0.03 * fz, 0.14, 0.9, V(sg * 0.02, 0, -0.035)), segment(null, j.hip, j.kn, 0.03 * fz, 0.14, 0.92, V(-sg * 0.018, 0, -0.035)));
-    zone('muscle', 'adductors', s, segment(null, j.hip, j.kn, 0.04 * fz, 0.06, 0.55, V(-sg * 0.04, 0, 0.005)));
-    zone('muscle', 'calves', s,
-      ellipsoid(null, at(j.kn, j.an, 0.28).add(V(sg * 0.017, 0, -0.026)), [0.028 * fz, 0.11, 0.035]),
-      ellipsoid(null, at(j.kn, j.an, 0.3).add(V(-sg * 0.017, 0, -0.026)), [0.03 * fz, 0.11, 0.036]),
-      segment(null, j.kn, j.an, 0.03 * fz, 0.35, 0.7, V(0, 0, -0.012)));
-    zone('muscle', 'tibialis', s, segment(null, j.kn, j.an, 0.02, 0.12, 0.8, V(sg * 0.014, 0, 0.034)));
-    const sole = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.025, 0.2)); sole.position.set(j.an.x, 0.018, 0.065);
-    zone('muscle', 'foot', s, sole);
-  }
+  /* ---------- тијело: глатка човјеколика површина ---------- */
+  const human = buildHuman(data, sex, J, P);
+  // провидна кожа за слојеве скелета и фасција
+  layers.skin.add(new THREE.Mesh(human.geometry, skinMat));
+  // мишићни слој: иста површина, обојена по мишићним зонама (боја по тачки)
+  const muscleMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.05 });
+  const muscleMesh = new THREE.Mesh(human.geometry, muscleMat);
+  const vz = human.vertexZone, vs = human.vertexSide;
+  const sideOf = (i) => (ZONE[vz[i]]?.paired ? vs[i] : 'C');
+  muscleMesh.userData = { layer: 'muscle', zoneAt: (face) => { const i = [face.a, face.b, face.c].find((k) => vz[k]) ?? face.a; return vz[i] ? { zone: vz[i], side: sideOf(i) } : null; } };
+  layers.muscle.add(muscleMesh); pickables.muscle.push(muscleMesh);
+  // ивице између мишића (тамније линије)
+  const border = new Uint8Array(vz.length), ix = human.geometry.index.array;
+  for (let t = 0; t < ix.length; t += 3) { const a = ix[t], b = ix[t + 1], c = ix[t + 2]; if (vz[a] !== vz[b] || vz[b] !== vz[c]) border[a] = border[b] = border[c] = 2; }
+  // шира ивица: сусједи ивичних тачака добијају благо затамњење
+  for (let t = 0; t < ix.length; t += 3) { const a = ix[t], b = ix[t + 1], c = ix[t + 2]; if (border[a] === 2 || border[b] === 2 || border[c] === 2) for (const k of [a, b, c]) if (!border[k]) border[k] = 1; }
+  const shade = new Map();
+  const zoneBase = (z) => { if (!shade.has(z)) { let h = 0; for (const ch of z) h = (h * 31 + ch.charCodeAt(0)) % 997; const c = new THREE.Color(palette.muscle); const ZL = ['neck', 'traps', 'delts', 'rotator', 'pecs', 'biceps', 'triceps', 'forearm', 'abs', 'obliques', 'lats', 'upperback', 'erectors', 'glutemax', 'glutemed', 'hipflex', 'quads', 'hams', 'adductors', 'calves', 'tibialis', 'foot']; const k = Math.max(0, ZL.indexOf(z)); c.offsetHSL(((k % 3) - 1) * 0.012, 0, [0, 0.07, -0.05, 0.035][k % 4]); shade.set(z, c); } return shade.get(z); };
+  const neutral = new THREE.Color(palette.skinSolid || '#5b6478');
+  /** Боји мишићни слој: colorFor(zone, side) → { color, dim } или null за основну боју */
+  const paintMuscle = (colorFor) => {
+    const col = human.geometry.attributes.color, c = new THREE.Color();
+    for (let i = 0; i < vz.length; i++) {
+      const z = vz[i];
+      if (!z) { c.copy(neutral); } else {
+        const o = colorFor(z, sideOf(i));
+        c.copy(o?.color || zoneBase(z));
+        if (o?.dim) c.multiplyScalar(0.45);
+        if (o?.glow) c.lerp(new THREE.Color('#ffffff'), 0.25);
+      }
+      if (border[i] === 2) c.multiplyScalar(0.4); else if (border[i] === 1) c.multiplyScalar(0.72);
+      col.setXYZ(i, c.r, c.g, c.b);
+    }
+    col.needsUpdate = true;
+  };
+  paintMuscle(() => null);
 
   /* ---------- скелет (кости + зглобови као зоне) ---------- */
   const sk = layers.skeleton;
@@ -201,5 +151,5 @@ export function buildBody(sex, palette) {
     const pl = ellipsoid(null, V(j.an.x, 0.006, 0.06), [0.035, 0.006, 0.11]);
     zone('fascia', 'f_plantar', s, pl);
   }
-  return { root, layers, pickables };
+  return { root, layers, pickables, paintMuscle };
 }

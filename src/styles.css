@@ -397,3 +397,9 @@ textarea.inp{resize:vertical;min-height:80px}
   .cmp .c,.tbl th,.tbl td{break-inside:avoid}
   *{box-shadow:none!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+/* 3Д тијело */
+.body3d{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,color-mix(in srgb,var(--p1) 12%,transparent),transparent 70%),var(--surface)}
+.v3d{width:100%;height:min(68vh,640px);min-height:420px}
+.v3d canvas{display:block;width:100%!important;height:100%!important;cursor:grab}
+.v3d-hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;pointer-events:none}

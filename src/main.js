@@ -21,6 +21,7 @@ import * as membership from './ui/views/membership.js';
 import * as findings from './ui/views/findings.js';
 import * as schedule from './ui/views/schedule.js';
 import * as report from './ui/views/report.js';
+import * as atlas from './ui/views/atlas.js';
 import { esc } from './lib/util.js';
 import * as cloud from './sync/auto.js';
 
@@ -34,6 +35,7 @@ const NAV = [
   ['pregled', 'Преглед по данима', ICONS.list],
   ['napredak', 'Напредак', ICONS.chart],
   ['programi', 'Програми', ICONS.list],
+  ['atlas', 'Атлас тијела', ICONS.body],
   ['biblioteka', 'Библиотека вјежби', ICONS.dumbbell],
   ['podaci', 'Подаци и копије', ICONS.data],
 ];
@@ -51,6 +53,7 @@ const ROUTES = {
   nalaz: [findings.renderEditor, 'klijenti'],
   raspored: [schedule.render, 'raspored'],
   izvjestaj: [report.render, 'klijenti'],
+  atlas: [atlas.render, 'atlas'],
 };
 
 function shell() {

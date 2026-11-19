@@ -9,6 +9,7 @@ import { renderClientMembership, statusOf, statusChip } from './membership.js';
 import { renderClientFindings } from './findings.js';
 import { renderClientHealth, healthState, activeInjuries } from './health.js';
 import { renderClientPlan } from './plan.js';
+import { renderClientBody } from './atlas.js';
 
 const st = { day: today(), month: monthStart(today()), cid: null };
 
@@ -16,7 +17,7 @@ export async function render(main, [id, tab = 'trening']) {
   const c = await repo.getClient(id);
   if (!c) { main.innerHTML = '<div class="wrap"><p class="empty card">Клијент није пронађен.</p></div>'; return; }
   if (st.cid !== id) { st.cid = id; st.day = today(); st.month = monthStart(today()); }
-  const TABS = [['trening', 'Календар и унос'], ['istorija', 'Историја'], ['programi', 'Програми'], ['napredak', 'Напредак'], ['nalazi', 'Мјерења и налази'], ['zdravlje', 'Здравље'], ['plan', 'Циљеви и исхрана'], ['clanarina', 'Чланарина и пакети']];
+  const TABS = [['trening', 'Календар и унос'], ['istorija', 'Историја'], ['programi', 'Програми'], ['napredak', 'Напредак'], ['tijelo', 'Тијело 3Д'], ['nalazi', 'Мјерења и налази'], ['zdravlje', 'Здравље'], ['plan', 'Циљеви и исхрана'], ['clanarina', 'Чланарина и пакети']];
   const hs = healthState(c), injN = activeInjuries(c).length;
   const [pays, opts] = await Promise.all([repo.listPayments({ clientId: id }), repo.getOptions()]);
   const ms = statusOf(pays, opts);
@@ -45,6 +46,7 @@ export async function render(main, [id, tab = 'trening']) {
   if (tab === 'nalazi') return renderClientFindings(root, c);
   if (tab === 'zdravlje') return renderClientHealth(root, c);
   if (tab === 'plan') return renderClientPlan(root, c);
+  if (tab === 'tijelo') return renderClientBody(root, c);
   return calendar(root, c);
 }
 

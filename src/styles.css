@@ -403,3 +403,12 @@ textarea.inp{resize:vertical;min-height:80px}
 .v3d{width:100%;height:min(68vh,640px);min-height:420px}
 .v3d canvas{display:block;width:100%!important;height:100%!important;cursor:grab}
 .v3d-hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;pointer-events:none}
+
+/* детаљи мишића */
+details.muscle{border:1px solid var(--line);border-radius:10px;background:var(--surface-2);padding:2px 12px}
+details.muscle>summary{cursor:pointer;min-height:42px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+details.muscle[open]>summary{border-bottom:1px solid var(--line)}
+.mdl{display:grid;grid-template-columns:minmax(110px,170px) 1fr;gap:6px 12px;margin:10px 0}
+.mdl dt{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
+.mdl dd{margin:0}
+@media (max-width:640px){.mdl{grid-template-columns:1fr}.mdl dd{margin-bottom:6px}}

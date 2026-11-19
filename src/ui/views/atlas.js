@@ -5,6 +5,7 @@ import { esc, fmtDate, today, uid, isValidDate } from '../../lib/util.js';
 import { ZONES, ZONE, LAYERS, MARK_TYPES, SCIENCE, zoneLabel } from '../../data/body-zones.js';
 import { suggestExercises, MODES } from '../../domain/prehab.js';
 import { TYPE_SHORT } from '../../data/exercises-seed.js';
+import { MUSCLE, MUSCLE_FIELDS, musclesForZone, searchMuscles } from '../../data/muscles.js';
 
 const st = { sex: 'm', layer: 'muscle', sel: null, cid: null };
 
@@ -33,6 +34,16 @@ function zoneListHtml() {
       : `<button class="qchip" data-z="${z.id}" data-s="C" data-l="${l}">${esc(z.name)}</button>`).join('')}</div></div>`).join('')}</div></details>`;
 }
 
+/** Детаљан опис једног мишића */
+export function muscleDetailHtml(m, open = false) {
+  return `<details class="muscle" ${open ? 'open' : ''}><summary><b>${esc(m.name)}</b> <span class="small muted"><i>${esc(m.lat)}</i></span></summary>
+    <dl class="mdl">${MUSCLE_FIELDS.filter(([k]) => m[k] && m[k] !== '—').map(([k, l]) => `<dt>${l}</dt><dd>${esc(m[k])}</dd>`).join('')}</dl></details>`;
+}
+function musclesHtml(zoneId) {
+  const list = musclesForZone(zoneId);
+  return list.length ? `<div><div class="lbl">Мишићи у овој зони (${list.length})</div><div class="stack" style="gap:6px;margin-top:6px">${list.map((m) => muscleDetailHtml(m)).join('')}</div></div>` : '';
+}
+
 /** Опис зоне са вјежбама */
 export function zoneInfoHtml(id, side, exMap) {
   const z = ZONE[id]; if (!z) return '';
@@ -42,6 +53,7 @@ export function zoneInfoHtml(id, side, exMap) {
     <div><span class="chip accent">${LAYERS[z.layer]}</span><h2 style="margin-top:6px">${esc(zoneLabel(id, side))}</h2></div>
     ${row('Опис', z.desc)}${row('Функција', z.func)}${row('Чести проблеми', z.issues)}${row('Превенција', z.prehab)}
     <div class="banner info small"><div><b>Занимљивост:</b> ${esc(z.fact)}</div></div>
+    ${musclesHtml(id)}
     ${exs.length ? `<div><div class="lbl">Препоручене вјежбе</div><div class="list">${exs.map((e) => `<div class="litem" style="cursor:default;min-height:0;padding:8px 0"><div class="grow"><b>${esc(e.name)}</b><small>${esc(e.note || '')}</small></div><span class="chip muted">${TYPE_SHORT[e.type]}</span></div>`).join('')}</div></div>` : ''}
     <p class="small muted">Опште едукативни опис, не дијагноза. Код бола или повреде упутите клијента љекару/физиотерапеуту.</p></div>`;
 }
@@ -69,6 +81,7 @@ export async function render(main) {
       <div class="card body3d"><div id="v3d" class="v3d"></div><p class="small muted v3d-hint">Превуците за окретање · два прста за зум · додирните зону</p></div>
       <section class="card pad" id="info"></section>
     </div>
+    <section class="card pad stack"><div class="field"><label for="msearch">Претрага мишића (српски или латински назив, функција)</label><input id="msearch" class="inp" type="search" placeholder="нпр. supraspinatus, примицач, ротација" autocomplete="off"></div><div id="mres" class="stack" style="gap:6px"></div></section>
     ${zoneListHtml()}
   </div>`;
   const info = main.querySelector('#info');
@@ -76,6 +89,16 @@ export async function render(main) {
   show(null);
   const viewer = await mountViewer(main.querySelector('#v3d'), { sex: st.sex, layer: st.layer, onPick: show });
   bindControls(main, viewer, show);
+  const ms = main.querySelector('#msearch'), mres = main.querySelector('#mres');
+  ms.oninput = () => {
+    const r = searchMuscles(ms.value);
+    mres.innerHTML = ms.value.trim() ? (r.length ? r.map((m) => muscleDetailHtml(m) + `<div class="small muted" style="margin:-2px 0 4px 10px">Зона: ${m.zones.map((z) => `<button class="qchip" data-mz="${z}">${esc(ZONE[z]?.name || z)}</button>`).join(' ')}</div>`).join('') : '<p class="muted small">Нема мишића за ову претрагу.</p>') : '';
+    mres.querySelectorAll('[data-mz]').forEach((b) => (b.onclick = () => {
+      const z = ZONE[b.dataset.mz]; const sel = { zone: z.id, side: z.paired ? 'L' : 'C' };
+      if (z.layer !== st.layer) { st.layer = z.layer; main.querySelectorAll('[data-layer]').forEach((x) => x.classList.toggle('on', x.dataset.layer === st.layer)); viewer?.setLayer(st.layer); }
+      viewer?.select(sel); show(sel); main.querySelector('#info').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+  };
   disposeOnLeave(main, viewer);
 }
 

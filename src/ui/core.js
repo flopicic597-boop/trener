@@ -89,6 +89,26 @@ export function toast(msg, type = '') {
   clearTimeout(toastT); toastT = setTimeout(() => t.remove(), type === 'bad' ? 6000 : 2600);
 }
 
+/* ---------------- изглед: тема и палета боја (по уређају) ---------------- */
+export const THEMES = { auto: 'Аутоматски', light: 'Свијетла', dark: 'Тамна' };
+export const ACCENTS = {
+  cyan: ['Неон цијан', '#22d3ee', '#a78bfa'], green: ['Неон зелена', '#39ff88', '#c6ff3d'],
+  orange: ['Наранџаста', '#ff8a1f', '#ff2e63'], gold: ['Злато', '#f5c542', '#e8a317'], pink: ['Плава и розе', '#4d86ff', '#ff3dcb'],
+};
+const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* приватни режим */ } };
+export const getLook = () => ({ theme: THEMES[lsGet('trener-tema', 'auto')] ? lsGet('trener-tema', 'auto') : 'auto', accent: ACCENTS[lsGet('trener-boja', 'cyan')] ? lsGet('trener-boja', 'cyan') : 'cyan' });
+export function applyLook(change = {}) {
+  const look = { ...getLook(), ...change };
+  if (change.theme) lsSet('trener-tema', look.theme);
+  if (change.accent) lsSet('trener-boja', look.accent);
+  const el = document.documentElement;
+  if (look.theme === 'auto') el.removeAttribute('data-theme'); else el.dataset.theme = look.theme;
+  if (look.accent === 'cyan') el.removeAttribute('data-accent'); else el.dataset.accent = look.accent;
+  const b = document.getElementById('theme'); if (b) b.textContent = 'Тема: ' + THEMES[look.theme].toLowerCase();
+  return look;
+}
+
 /* ---------------- помоћно за приказ ---------------- */
 export const KAT_VAR = { 'Ноге': '--k-noge', 'Леђа': '--k-leda', 'Груди': '--k-grudi', 'Рамена': '--k-ramena', 'Руке': '--k-ruke', 'Кор': '--k-core', 'Кардио': '--k-kardio', 'Мобилност': '--k-mob' };
 export const katStyle = (k) => `--kc:var(${KAT_VAR[k] || '--k-core'})`;

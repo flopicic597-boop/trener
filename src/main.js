@@ -8,7 +8,7 @@ import '@fontsource/exo-2/latin-700.css';
 import '@fontsource/exo-2/latin-800.css';
 import './styles.css';
 import { registerSW } from 'virtual:pwa-register';
-import { repo, flushSaves, hasUnsaved, ICONS, lastBackupText, toast } from './ui/core.js';
+import { repo, flushSaves, hasUnsaved, ICONS, lastBackupText, toast, applyLook, getLook } from './ui/core.js';
 import * as clients from './ui/views/clients.js';
 import * as client from './ui/views/client.js';
 import * as session from './ui/views/session.js';
@@ -22,7 +22,7 @@ import * as findings from './ui/views/findings.js';
 import { esc } from './lib/util.js';
 
 /** Лого: хексагон и тег, у истом стилу као икона апликације */
-export const LOGO = '<svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#a78bfa"/></linearGradient></defs><path d="M24 3.5 41.8 13.75v20.5L24 44.5 6.2 34.25v-20.5Z" fill="rgba(34,211,238,.08)" stroke="url(#lg)" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 24h26" stroke="url(#lg)" stroke-width="1.8" stroke-linecap="round"/><path d="M18.5 16v16M29.5 16v16" stroke="url(#lg)" stroke-width="4.6" stroke-linecap="round"/><path d="M14 20v8M34 20v8" stroke="url(#lg)" stroke-width="3" stroke-linecap="round"/></svg>';
+export const LOGO = '<svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--p1)"/><stop offset="1" style="stop-color:var(--p2)"/></linearGradient></defs><path d="M24 3.5 41.8 13.75v20.5L24 44.5 6.2 34.25v-20.5Z" fill="none" stroke="url(#lg)" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 24h26" stroke="url(#lg)" stroke-width="1.8" stroke-linecap="round"/><path d="M18.5 16v16M29.5 16v16" stroke="url(#lg)" stroke-width="4.6" stroke-linecap="round"/><path d="M14 20v8M34 20v8" stroke="url(#lg)" stroke-width="3" stroke-linecap="round"/></svg>';
 
 const NAV = [
   ['klijenti', 'Клијенти', ICONS.users],
@@ -85,16 +85,9 @@ async function refreshBackupInfo() {
 }
 
 function theme() {
-  const KEY = 'trener-tema';
-  const order = ['auto', 'light', 'dark'], label = { auto: 'аутоматски', light: 'свијетла', dark: 'тамна' };
-  let cur = 'auto';
-  try { cur = localStorage.getItem(KEY) || 'auto'; } catch { /* приватни режим */ }
-  const apply = () => {
-    if (cur === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = cur;
-    document.getElementById('theme').textContent = 'Тема: ' + label[cur];
-  };
-  apply();
-  document.getElementById('theme').onclick = () => { cur = order[(order.indexOf(cur) + 1) % 3]; try { localStorage.setItem(KEY, cur); } catch { /* */ } apply(); };
+  applyLook();
+  const order = ['auto', 'light', 'dark'];
+  document.getElementById('theme').onclick = () => { const cur = getLook().theme; applyLook({ theme: order[(order.indexOf(cur) + 1) % 3] }); };
 }
 
 /* Нова верзија: никад се не освјежава сама. Корисник бира тренутак, а дугме чека да се сачува сав унос. */

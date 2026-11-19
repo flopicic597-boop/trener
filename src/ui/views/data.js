@@ -1,5 +1,5 @@
 // Подаци: резервна копија (JSON), увоз са спајањем, CSV, снимци, пробни подаци, изборне вриједности.
-import { repo, db, save, flushSaves, confirmDlg, toast, openModal, closeModal, fullName } from '../core.js';
+import { repo, db, save, flushSaves, confirmDlg, toast, openModal, closeModal, fullName, THEMES, ACCENTS, getLook, applyLook } from '../core.js';
 import { esc, fmtDateTime, fmtNum, parseNum, daysBetween, today } from '../../lib/util.js';
 import { exportBackup, validateBackup, analyzeImport, applyImport, createSnapshot, replaceAll, backupFileName, describeRecord, TABLE_LABEL, APP_VERSION, FORMAT_VERSION } from '../../io/backup.js';
 import { SCHEMA_VERSION } from '../../data/db.js';
@@ -22,6 +22,13 @@ export async function render(main) {
     <div class="banner ${!last || age > 7 ? 'warn' : 'info'}"><div>
       <b>Посљедња резервна копија: ${last ? fmtDateTime(last) : 'још није направљена'}</b>${age > 7 ? ` (прије ${age} дана)` : ''}<br>
       <span class="small">Подаци се чувају само локално у овом прегледачу на овом уређају. <b>Локално чување није резервна копија</b>: брисање података апликације или прегледача, деинсталација или квар уређаја трајно уклањају записе. Редовно правите JSON копију и сачувајте је ван уређаја.</span></div></div>
+
+    <section class="card pad stack" id="look">
+      <h2>Изглед</h2>
+      <p class="small">Боје и тема важе за овај уређај (таблет и рачунар бирате посебно) и не утичу на податке.</p>
+      <div class="field"><span class="lbl">Тема</span><div class="seg">${Object.entries(THEMES).map(([k, v]) => `<button data-theme-set="${k}" class="${getLook().theme === k ? 'on' : ''}">${v}</button>`).join('')}</div></div>
+      <div class="field"><span class="lbl">Боје</span><div class="swatches">${Object.entries(ACCENTS).map(([k, [name, c1, c2]]) => `<button class="swatch ${getLook().accent === k ? 'on' : ''}" data-accent-set="${k}"><i style="background:linear-gradient(135deg,${c1},${c2})"></i>${name}</button>`).join('')}</div></div>
+    </section>
 
     <section class="card pad stack">
       <h2>1. Резервна копија (JSON)</h2>
@@ -91,6 +98,8 @@ export async function render(main) {
   </div>`;
 
   const re = () => render(main);
+  main.querySelectorAll('[data-theme-set]').forEach((b) => (b.onclick = () => { applyLook({ theme: b.dataset.themeSet }); main.querySelectorAll('[data-theme-set]').forEach((x) => x.classList.toggle('on', x === b)); }));
+  main.querySelectorAll('[data-accent-set]').forEach((b) => (b.onclick = () => { applyLook({ accent: b.dataset.accentSet }); main.querySelectorAll('[data-accent-set]').forEach((x) => x.classList.toggle('on', x === b)); }));
   const doExport = async (share) => {
     await flushSaves();
     const b = await save(() => exportBackup(db));

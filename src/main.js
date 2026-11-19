@@ -1,6 +1,11 @@
 // Улазна тачка: распоред, навигација, регистрација service worker-а (рад без интернета).
-import '@fontsource/roboto-condensed/cyrillic-700.css';
-import '@fontsource/roboto-condensed/latin-700.css';
+// Exo 2: футуристички фонт са ћирилицом, уграђен (ради без интернета)
+import '@fontsource/exo-2/cyrillic-600.css';
+import '@fontsource/exo-2/cyrillic-700.css';
+import '@fontsource/exo-2/cyrillic-800.css';
+import '@fontsource/exo-2/latin-600.css';
+import '@fontsource/exo-2/latin-700.css';
+import '@fontsource/exo-2/latin-800.css';
 import './styles.css';
 import { registerSW } from 'virtual:pwa-register';
 import { repo, flushSaves, hasUnsaved, ICONS, lastBackupText, toast } from './ui/core.js';
@@ -15,6 +20,9 @@ import * as data from './ui/views/data.js';
 import * as membership from './ui/views/membership.js';
 import * as findings from './ui/views/findings.js';
 import { esc } from './lib/util.js';
+
+/** Лого: хексагон и тег, у истом стилу као икона апликације */
+export const LOGO = '<svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#a78bfa"/></linearGradient></defs><path d="M24 3.5 41.8 13.75v20.5L24 44.5 6.2 34.25v-20.5Z" fill="rgba(34,211,238,.08)" stroke="url(#lg)" stroke-width="2.6" stroke-linejoin="round"/><path d="M11 24h26" stroke="url(#lg)" stroke-width="1.8" stroke-linecap="round"/><path d="M18.5 16v16M29.5 16v16" stroke="url(#lg)" stroke-width="4.6" stroke-linecap="round"/><path d="M14 20v8M34 20v8" stroke="url(#lg)" stroke-width="3" stroke-linecap="round"/></svg>';
 
 const NAV = [
   ['klijenti', 'Клијенти', ICONS.users],
@@ -42,7 +50,7 @@ const ROUTES = {
 function shell() {
   document.getElementById('app').innerHTML = `<div class="app">
     <aside class="side">
-      <div class="brand"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#6c90f2" stroke-width="2.4" aria-hidden="true"><path d="M6 7v10M3 9v6M18 7v10M21 9v6M6 12h12"/></svg>
+      <div class="brand">${LOGO}
         <div><b>Тренер</b><small>евиденција</small></div></div>
       <nav class="nav" aria-label="Главна навигација">${NAV.map(([k, label, ico]) => `<a href="#/${k}" data-nav="${k}">${ico}<span>${label}</span></a>`).join('')}</nav>
       <div class="side-foot"><div>Резервна копија:<br><b id="lastbk" style="color:var(--side-fg)">…</b></div>

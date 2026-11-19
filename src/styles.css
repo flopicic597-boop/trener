@@ -1,50 +1,65 @@
-/* Изглед по узору „Тренинг платформа“: тамна бочна трака + свијетла радна површина;
-   боје олимпијских тегова означавају категорије вјежби. Прилагођено додиру (мин. 44px). */
+/* Футуристички изглед (верзија 1.2): тамна „командна табла“ са неон цијан/љубичастим акцентима,
+   стаклене картице и суптилна мрежа у позадини. Свијетла тема остаје за јако свјетло у теретани.
+   Боје олимпијских тегова и даље означавају категорије вјежби. Прилагођено додиру (мин. 46px). */
 :root{
-  --bg:#eef1f5; --surface:#ffffff; --surface-2:#f5f7fa; --line:#d8dee8; --line-2:#c3cbd8;
-  --fg:#131924; --muted:#5a6476; --faint:#8a94a6;
-  --accent:#1e4fd0; --accent-fg:#ffffff; --accent-soft:#e2e9fb;
-  --ok:#17804a; --ok-soft:#dff3e7; --warn:#a96c00; --warn-soft:#fbefd4; --bad:#c22f29; --bad-soft:#fbe3e2;
-  --side-bg:#121822; --side-fg:#dfe5ee; --side-muted:#8792a5; --side-hover:#1d2533;
-  --k-noge:#c8312b; --k-leda:#1e4fd0; --k-grudi:#c99a00; --k-ramena:#17804a; --k-ruke:#7a4cc2; --k-core:#56606f; --k-kardio:#0f8a8a; --k-mob:#3f9bd0;
-  --f-display:"Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+  --bg:#edf2fa; --surface:#ffffffe6; --surface-solid:#ffffff; --surface-2:#f2f6fc; --line:#d5deeb; --line-2:#bccadd;
+  --fg:#0b1324; --muted:#4f5d75; --faint:#8592a8;
+  --accent:#0587a8; --accent-2:#6d3fe0; --accent-fg:#ffffff; --accent-soft:#dcf3f9;
+  --grad:linear-gradient(120deg,#0596b8 0%,#4f5ee8 55%,#7a3fe2 100%);
+  --glow:0 6px 22px rgba(5,135,168,.22);
+  --ok:#0b8a5a; --ok-soft:#dbf5ea; --warn:#a46400; --warn-soft:#fcefd6; --bad:#cf2f4a; --bad-soft:#fde4e8;
+  --side-bg:rgba(9,14,26,.96); --side-fg:#e4eefc; --side-muted:#8b9ab4; --side-hover:rgba(34,211,238,.10);
+  --page-glow:radial-gradient(1100px 600px at -10% -10%,rgba(34,211,238,.14),transparent 60%),radial-gradient(900px 600px at 110% 110%,rgba(139,92,246,.12),transparent 60%);
+  --gridline:rgba(30,60,110,.05);
+  --k-noge:#d6334a; --k-leda:#2563eb; --k-grudi:#c98a00; --k-ramena:#0b8a5a; --k-ruke:#7c3aed; --k-core:#56637a; --k-kardio:#0891b2; --k-mob:#0ea5e9;
+  --f-display:"Exo 2","Roboto Condensed",system-ui,sans-serif;
   --f-body:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
   --f-mono:ui-monospace,"Cascadia Mono",Consolas,"Roboto Mono",monospace;
-  --tap:46px;
+  --tap:46px; --r:14px;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0d1117; --surface:#151b24; --surface-2:#1a212c; --line:#262f3d; --line-2:#344052;
-  --fg:#e6eaf1; --muted:#97a2b5; --faint:#6c7789;
-  --accent:#6c90f2; --accent-fg:#0b1020; --accent-soft:#1b2747;
-  --ok:#4cc985; --ok-soft:#14301f; --warn:#e2a93a; --warn-soft:#33270f; --bad:#f06a63; --bad-soft:#3a1716;
-  --side-bg:#090c11; --side-hover:#151b25;
-  --k-noge:#ef6a62; --k-leda:#6c90f2; --k-grudi:#e2b83a; --k-ramena:#4cc985; --k-ruke:#a585e6; --k-core:#9aa5b6; --k-kardio:#3cc4c4; --k-mob:#7cc3ea;
+  --bg:#060a13; --surface:rgba(14,21,37,.78); --surface-solid:#0e1525; --surface-2:rgba(22,32,54,.72); --line:rgba(120,160,230,.14); --line-2:rgba(120,170,240,.26);
+  --fg:#e8f1ff; --muted:#93a4c3; --faint:#62708a;
+  --accent:#22d3ee; --accent-2:#a78bfa; --accent-fg:#04111a; --accent-soft:rgba(34,211,238,.13);
+  --grad:linear-gradient(120deg,#22d3ee 0%,#6c8cff 55%,#a78bfa 100%);
+  --glow:0 0 0 1px rgba(34,211,238,.25),0 8px 28px rgba(34,211,238,.22);
+  --ok:#34e3a0; --ok-soft:rgba(52,227,160,.12); --warn:#fbbf24; --warn-soft:rgba(251,191,36,.12); --bad:#fb7185; --bad-soft:rgba(251,113,133,.13);
+  --side-bg:rgba(6,10,20,.82); --side-hover:rgba(34,211,238,.10);
+  --page-glow:radial-gradient(1100px 650px at -10% -15%,rgba(34,211,238,.16),transparent 60%),radial-gradient(1000px 700px at 115% 115%,rgba(139,92,246,.18),transparent 60%);
+  --gridline:rgba(120,170,255,.045);
+  --k-noge:#ff6b81; --k-leda:#60a5fa; --k-grudi:#fcd34d; --k-ramena:#34e3a0; --k-ruke:#c4a1ff; --k-core:#a3b1c9; --k-kardio:#22d3ee; --k-mob:#7dd3fc;
   color-scheme:dark;
 }}
 :root[data-theme="dark"]{
-  --bg:#0d1117; --surface:#151b24; --surface-2:#1a212c; --line:#262f3d; --line-2:#344052;
-  --fg:#e6eaf1; --muted:#97a2b5; --faint:#6c7789;
-  --accent:#6c90f2; --accent-fg:#0b1020; --accent-soft:#1b2747;
-  --ok:#4cc985; --ok-soft:#14301f; --warn:#e2a93a; --warn-soft:#33270f; --bad:#f06a63; --bad-soft:#3a1716;
-  --side-bg:#090c11; --side-hover:#151b25;
-  --k-noge:#ef6a62; --k-leda:#6c90f2; --k-grudi:#e2b83a; --k-ramena:#4cc985; --k-ruke:#a585e6; --k-core:#9aa5b6; --k-kardio:#3cc4c4; --k-mob:#7cc3ea;
+  --bg:#060a13; --surface:rgba(14,21,37,.78); --surface-solid:#0e1525; --surface-2:rgba(22,32,54,.72); --line:rgba(120,160,230,.14); --line-2:rgba(120,170,240,.26);
+  --fg:#e8f1ff; --muted:#93a4c3; --faint:#62708a;
+  --accent:#22d3ee; --accent-2:#a78bfa; --accent-fg:#04111a; --accent-soft:rgba(34,211,238,.13);
+  --grad:linear-gradient(120deg,#22d3ee 0%,#6c8cff 55%,#a78bfa 100%);
+  --glow:0 0 0 1px rgba(34,211,238,.25),0 8px 28px rgba(34,211,238,.22);
+  --ok:#34e3a0; --ok-soft:rgba(52,227,160,.12); --warn:#fbbf24; --warn-soft:rgba(251,191,36,.12); --bad:#fb7185; --bad-soft:rgba(251,113,133,.13);
+  --side-bg:rgba(6,10,20,.82); --side-hover:rgba(34,211,238,.10);
+  --page-glow:radial-gradient(1100px 650px at -10% -15%,rgba(34,211,238,.16),transparent 60%),radial-gradient(1000px 700px at 115% 115%,rgba(139,92,246,.18),transparent 60%);
+  --gridline:rgba(120,170,255,.045);
+  --k-noge:#ff6b81; --k-leda:#60a5fa; --k-grudi:#fcd34d; --k-ramena:#34e3a0; --k-ruke:#c4a1ff; --k-core:#a3b1c9; --k-kardio:#22d3ee; --k-mob:#7dd3fc;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%}
-body{background:var(--bg);color:var(--fg);font:16px/1.5 var(--f-body);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+body{background-color:var(--bg);background-image:var(--page-glow),linear-gradient(var(--gridline) 1px,transparent 1px),linear-gradient(90deg,var(--gridline) 1px,transparent 1px);background-size:auto,auto,44px 44px,44px 44px;background-attachment:fixed;color:var(--fg);font:16px/1.5 var(--f-body);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button,input,select,textarea{font:inherit;color:inherit}
+select option,select optgroup{background:var(--surface-solid);color:var(--fg)}
 table{font:inherit;border-collapse:collapse;width:100%}
-h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;line-height:1.1;margin:0}
-h1{font-size:clamp(28px,4vw,38px);text-transform:uppercase}
-h2{font-size:22px;text-transform:uppercase;letter-spacing:.03em}
-h3{font-size:18px;text-transform:uppercase;letter-spacing:.04em}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:.02em;line-height:1.1;margin:0}
+h1{font-size:clamp(28px,4vw,40px);text-transform:uppercase;letter-spacing:.04em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+h2{font-size:21px;text-transform:uppercase;letter-spacing:.06em}
+h3{font-size:17px;text-transform:uppercase;letter-spacing:.07em}
 p{margin:0}
 .num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 .muted{color:var(--muted)} .small{font-size:14px}
-:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;box-shadow:0 0 0 5px var(--accent-soft)}
 [hidden]{display:none!important}
+::selection{background:var(--accent);color:var(--accent-fg)}
 
 /* ---------- оквир ---------- */
 .app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
@@ -249,3 +264,102 @@ textarea.inp{resize:vertical;min-height:80px}
 .dcard .meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;color:var(--muted)}
 .detail{padding:10px 14px;background:var(--surface-2);border-top:1px solid var(--line)}
 .detail table td,.detail table th{padding:6px 8px;font-size:14px}
+
+/* ================================================================== */
+/* Футуристички слој (верзија 1.2) — замјењује изглед компоненти       */
+/* ================================================================== */
+.side{background:var(--side-bg);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-right:1px solid rgba(34,211,238,.14);box-shadow:1px 0 0 rgba(167,139,250,.08)}
+.brand svg{filter:drop-shadow(0 0 8px rgba(34,211,238,.45))}
+.brand b{font-family:var(--f-display);font-weight:800;letter-spacing:.14em;background:linear-gradient(120deg,#22d3ee,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand small{letter-spacing:.32em}
+.nav a{border-radius:10px;transition:background .15s,color .15s}
+.nav a.on{background:linear-gradient(90deg,rgba(34,211,238,.16),rgba(167,139,250,.06));color:#fff;box-shadow:inset 3px 0 0 #22d3ee}
+.nav a.on .ico{color:#22d3ee;filter:drop-shadow(0 0 6px rgba(34,211,238,.7))}
+.side-foot button{color:#7fe7f7}
+@media (max-width:1023px){
+  .side{border-right:0;border-bottom:1px solid rgba(34,211,238,.16)}
+  .nav a.on{box-shadow:inset 0 -3px 0 #22d3ee}
+}
+
+.eyebrow{color:var(--accent);letter-spacing:.24em;font-family:var(--f-display);font-weight:600}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 30px rgba(0,0,0,.12)}
+.btn{border-radius:11px;background:var(--surface-2);border-color:var(--line-2);transition:border-color .15s,box-shadow .15s,color .15s,filter .15s}
+.btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.btn.primary,.btn.primary:hover{background:var(--grad);border-color:transparent;color:var(--accent-fg);box-shadow:var(--glow);font-family:var(--f-display);letter-spacing:.04em}
+.btn.primary:hover{filter:brightness(1.08) saturate(1.1)}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:var(--accent-fg)}
+.btn.danger{color:var(--bad)}
+.btn.danger:hover{border-color:var(--bad);color:var(--bad);background:var(--bad-soft);box-shadow:none}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover{box-shadow:none}
+.inp{background:var(--surface-2);border-color:var(--line-2);border-radius:10px;transition:border-color .15s,box-shadow .15s}
+.inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft),0 0 18px rgba(34,211,238,.12)}
+.inp::placeholder{color:var(--faint)}
+.chip{box-shadow:inset 0 0 0 1px color-mix(in srgb,currentColor 32%,transparent)}
+.chip.muted{border:0}
+.st-skipped{border:0;box-shadow:inset 0 0 0 1px var(--line-2)}
+.ava{background:var(--grad);color:var(--accent-fg);box-shadow:0 0 14px rgba(34,211,238,.25)}
+.litem{transition:background .15s}
+.litem:hover{background:linear-gradient(90deg,var(--accent-soft),transparent 70%)}
+.tabs{border-bottom-color:var(--line-2)}
+.tabs a{font-family:var(--f-display);letter-spacing:.04em;transition:color .15s}
+.tabs a.on{color:var(--accent);border-bottom-color:var(--accent);text-shadow:0 0 14px color-mix(in srgb,var(--accent) 55%,transparent)}
+.tbl th{background:transparent;border-bottom-color:var(--line-2);color:var(--muted)}
+.tbl tr.click:hover td{background:var(--accent-soft)}
+.seg{border-color:var(--line-2);border-radius:11px;background:var(--surface-2)}
+.seg button.on{background:var(--grad);color:var(--accent-fg);box-shadow:var(--glow)}
+.qchip{background:var(--surface-2);transition:border-color .15s,box-shadow .15s}
+.qchip:hover{box-shadow:0 0 0 3px var(--accent-soft)}
+.qchip.on{background:var(--grad);border-color:transparent;color:var(--accent-fg);box-shadow:var(--glow)}
+.banner{border-radius:12px;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.banner.info{border-style:solid;border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.banner.warn{border-color:color-mix(in srgb,var(--warn) 55%,transparent)}
+.banner.bad{border-color:color-mix(in srgb,var(--bad) 55%,transparent)}
+
+/* календар */
+.cal button{background:var(--surface-2);border-color:var(--line);border-radius:10px;transition:border-color .15s,box-shadow .15s}
+.cal button:hover{border-color:var(--accent)}
+.cal button.today{border-color:var(--accent);box-shadow:0 0 12px color-mix(in srgb,var(--accent) 35%,transparent)}
+.cal button.sel{background:var(--grad);border-color:transparent;color:var(--accent-fg);box-shadow:var(--glow)}
+.cal .dots i{box-shadow:0 0 6px currentColor}
+
+/* тренинг */
+.mood{background:var(--surface-2);border-color:var(--line-2);border-radius:12px;transition:border-color .15s,box-shadow .15s}
+.mood b{font-family:var(--f-display)}
+.mood.on{background:var(--grad);border-color:transparent;box-shadow:var(--glow)}
+.statusbar button{border-radius:12px;background:var(--surface-2)}
+.statusbar button.on{box-shadow:0 0 14px color-mix(in srgb,currentColor 35%,transparent)}
+.exc{border-left-width:4px;box-shadow:inset 6px 0 18px -10px var(--kc,transparent),inset 0 1px 0 rgba(255,255,255,.05),0 10px 30px rgba(0,0,0,.12)}
+.exhead h3{font-family:var(--f-display);font-weight:600}
+.setgrid .no{font-family:var(--f-display);color:var(--accent)}
+.chk{background:var(--surface-2);border-color:var(--line-2);border-radius:11px}
+.chk.on{background:var(--ok);border-color:var(--ok);color:var(--accent-fg);box-shadow:0 0 16px color-mix(in srgb,var(--ok) 55%,transparent)}
+
+/* модал, обавјештења, статус чувања */
+.modal-bg{background:rgba(3,6,14,.62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.modal{background:var(--surface-solid);border:1px solid var(--line-2);border-radius:18px;box-shadow:0 0 0 1px rgba(34,211,238,.08),0 30px 80px rgba(0,0,0,.5)}
+.modal .mh h2{font-size:18px}
+.savebar{background:var(--surface);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-color:var(--line-2)}
+.savebar.saved .dot{box-shadow:0 0 8px var(--ok)}
+.savebar.saving .dot{box-shadow:0 0 8px var(--warn)}
+.toast{background:var(--surface-solid);color:var(--fg);border:1px solid var(--accent);box-shadow:var(--glow)}
+.toast.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+
+/* графикони и бројеви */
+.chart .ln{stroke:var(--accent);stroke-width:3;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--accent) 70%,transparent))}
+.chart .ln2{stroke:var(--accent-2)}
+.chart .pt{fill:var(--surface-solid);stroke:var(--accent)}
+.chart .pt2{fill:var(--accent-2)}
+.chart .bar{fill:var(--accent);filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 50%,transparent))}
+.legend i{background:var(--accent)} .legend i.l2{background:var(--accent-2)}
+.cmp .c{background:var(--surface-2);border-color:var(--line);border-radius:12px;position:relative;overflow:hidden}
+.cmp .c::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--grad);opacity:.8}
+.cmp .v{font-family:var(--f-display)}
+
+/* клизач */
+*{scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* статуси тренинга: свака боја свијетли када је изабрана */
+.statusbar button.st-planned{color:var(--accent)} .statusbar button.st-active{color:var(--warn)}
+.statusbar button.st-done{color:var(--ok)} .statusbar button.st-skipped{color:var(--muted);box-shadow:none}
+.statusbar button.on{background:color-mix(in srgb,currentColor 16%,transparent);border-color:currentColor;box-shadow:0 0 16px color-mix(in srgb,currentColor 40%,transparent)}

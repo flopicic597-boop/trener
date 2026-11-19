@@ -4,6 +4,7 @@ import { esc, today, addDays, fmtDate, fmtNum, fmtInt, isValidDate, sortBy } fro
 import { sessionSeries, completedPerBucket, exerciseSeries, periodSummary, previousPeriod, progressFindings } from '../../domain/stats.js';
 import { lineChart, barChart, dataTable, chartCard, bindChartToggles, NO_DATA } from '../../charts/charts.js';
 import { MOOD_LABEL } from '../../domain/rules.js';
+import { personalRecords, e1rmSeries, weeklyLoad, acwr, attendance, setsByCategory } from '../../domain/assessment.js';
 
 const PERIODS = [['28', '4 седмице'], ['91', '3 мјесеца'], ['182', '6 мјесеци'], ['365', '12 мјесеци'], ['custom', 'Прилагођено']];
 const st = { p: '28', from: null, to: null, ex: null, bucket: 'week' };
@@ -89,7 +90,12 @@ export async function renderClientProgress(root, clientId) {
   else {
     const picker = `<div class="field"><label for="exsel">Вјежба</label><select id="exsel" class="inp">${used.map((e) => `<option value="${e.id}" ${e.id === st.ex ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></div>`;
     if (ex.type === 'load') {
-      exCharts = chartCard('exw', 'Оптерећење и понављања', lineChart([
+      const sesById = new Map(sessions.map((x) => [x.id, x]));
+      const e1 = e1rmSeries(sets, sesById, ex.id).filter((p) => p.x >= from && p.x <= to);
+      exCharts = chartCard('ex1rm', 'Процијењени 1RM (Epley)', lineChart([{ name: 'Процијењени 1RM (кг)', points: e1.map((p) => ({ x: p.x, y: Math.round(p.y * 10) / 10 })) }], { from, to, label: '1RM', yFmt: (v) => fmtNum(v) }),
+        dataTable(['Датум', 'Процијењени 1RM (кг)'], e1.map((p) => [fmtDate(p.x), fmtNum(p.y, 1)])),
+        '<p class="small muted">Најбоља завршена серија тог дана, 1RM = кг × (1 + понављања/30), до 15 понављања. Процјена, не тестирани максимум.</p>') +
+      chartCard('exw', 'Оптерећење и понављања', lineChart([
         { name: 'Највећа тежина (кг)', points: es.filter((r) => r.maxWeight !== null).map((r) => ({ x: r.date, y: r.maxWeight, note: r.repsAtMax !== null ? `${r.repsAtMax} пон.` : '' })) },
       ], { from, to, label: 'Тежина', yFmt: (v) => fmtNum(v) }) +
         `<div class="lbl" style="margin-top:10px">Понављања (укупно у тренингу)</div>` +
@@ -108,6 +114,7 @@ export async function renderClientProgress(root, clientId) {
     ${periodPicker()}
     <section class="card pad stack"><h3>Поређење са претходним периодом</h3>${comparisonHtml(cur, prev)}</section>
     <section class="card pad stack"><h3>Конкретне промјене</h3>${findingsHtml(findings)}</section>
+    ${extraHtml(sessions, sets, exMap, from, to)}
     <div class="grid2">
       ${chartCard('mood', 'Расположење (1–5)', lineChart([{ name: 'Расположење', points: mood.map((p) => ({ x: p.date, y: p.value })) }], { from, to, yMin: 1, yMax: 5, label: 'Расположење' }),
         dataTable(['Датум', 'Расположење'], mood.map((p) => [fmtDate(p.date), `${p.value} – ${MOOD_LABEL[p.value]}`])))}
@@ -151,4 +158,35 @@ export async function render(main) {
     ${blocks.join('') || '<p class="empty card">Нема активних клијената.</p>'}
   </div>`;
   bindPicker(main, rerender);
+}
+
+/** Рекорди, оптерећење (sRPE) и ACWR, присуство и серије по мишићној групи */
+function extraHtml(sessions, sets, exMap, from, to) {
+  const sesById = new Map(sessions.map((x) => [x.id, x]));
+  const prs = personalRecords(sets, sesById).filter((r) => exMap.get(r.exerciseId)?.type === 'load').sort((a, b) => (b.best1rmDate || '').localeCompare(a.best1rmDate || ''));
+  const day = today();
+  const ac = acwr(sessions, day > to ? to : day);
+  const wl = weeklyLoad(sessions.filter((x) => x.date >= from && x.date <= to));
+  const att = attendance(sessions, from, to, day);
+  const cats = Object.entries(setsByCategory(sets, exMap, sesById, from, to)).sort((a, b) => b[1] - a[1]);
+  const weeks = Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 864e5 / 7));
+  const rec = ['soreness', 'energy', 'stress'].map((k) => { const v = sessions.filter((x) => x.date >= from && x.date <= to && typeof x[k] === 'number').map((x) => x[k]); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; });
+  const acTxt = !ac ? 'Нема довољно података (потребне бар 3 седмице тренинга са унесеним напором RPE и трајањем).'
+    : ac.level === 'high' ? `<b class="down">Нагли скок оптерећења</b> (однос ${fmtNum(ac.ratio, 2)}): посљедња седмица је знатно тежа од просјека претходне 4 — повећан ризик од повреде и замора. Размотрите лакшу седмицу.`
+    : ac.level === 'low' ? `Оптерећење је испод уобичајеног (однос ${fmtNum(ac.ratio, 2)}) — нпр. одмор или пад редовности.`
+    : `Оптерећење је уједначено (однос ${fmtNum(ac.ratio, 2)}, препоручено 0,8–1,3).`;
+  return `<section class="card pad stack"><h3>Присуство и опоравак</h3>
+      <div class="cmp">
+        <div class="c"><div class="lbl">Одржано</div><div class="v">${att.pct === null ? '—' : Math.round(att.pct * 100) + ' %'}</div><div class="small muted">${att.done} одржано, ${att.skipped} прескочено</div></div>
+        <div class="c"><div class="lbl">Низ седмица без пропуста</div><div class="v">${att.streak}</div><div class="small muted">узастопних седмица са тренингом</div></div>
+        ${[['Бол у мишићима', 0], ['Енергија', 1], ['Стрес', 2]].map(([l, i]) => `<div class="c"><div class="lbl">${l} (просјек 1–5)</div><div class="v">${rec[i] === null ? '—' : fmtNum(rec[i], 1)}</div><div class="small muted">5 = најбоље</div></div>`).join('')}
+      </div></section>
+    ${chartCard('load', 'Седмично оптерећење (RPE × минуте)', barChart(wl.map((p) => ({ label: fmtDate(p.x).slice(0, 6), value: p.y }))), dataTable(['Седмица од', 'Оптерећење'], wl.map((p) => [fmtDate(p.x), p.y])), `<div class="banner ${ac?.level === 'high' ? 'bad' : 'info'} small"><div>${acTxt}</div></div>`)}
+    <section class="card pad stack"><h3>Серије по мишићној групи</h3>
+      ${cats.length ? `<div class="tscroll"><table class="tbl"><thead><tr><th>Категорија</th><th class="r">Завршених серија</th><th class="r">Просјечно седмично</th></tr></thead><tbody>
+        ${cats.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="r num">${n}</td><td class="r num">${fmtNum(n / weeks, 1)}</td></tr>`).join('')}</tbody></table></div>
+        <p class="small muted">Велика разлика између група (нпр. много груди, мало леђа) указује на неравнотежу у програму.</p>` : NO_DATA}</section>
+    <section class="card pad stack"><h3>Лични рекорди (свих времена)</h3>
+      ${prs.length ? `<div class="tscroll"><table class="tbl"><thead><tr><th>Вјежба</th><th class="r">Процијењени 1RM</th><th>Датум</th><th class="r">Највећа тежина</th><th>Датум</th></tr></thead><tbody>
+        ${prs.map((r) => `<tr><td>${esc(exMap.get(r.exerciseId)?.name || '?')}</td><td class="r num"><b>${r.best1rm === null ? '—' : fmtNum(r.best1rm, 1) + ' kg'}</b></td><td class="num">${fmtDate(r.best1rmDate)}</td><td class="r num">${fmtNum(r.bestKg)} kg × ${r.bestKgReps}</td><td class="num">${fmtDate(r.bestKgDate)}</td></tr>`).join('')}</tbody></table></div>` : NO_DATA}</section>`;
 }

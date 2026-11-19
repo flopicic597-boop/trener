@@ -3,13 +3,14 @@ import { repo, save, queueSave, flushSaves, confirmDlg, toast, openModal, closeM
 import { esc, fmtDate, fmtNum, parseNum, today, isValidDate, uid } from '../../lib/util.js';
 import { FINDING_KINDS, PARAMS, PARAM, parseFindingText, compareFindings, buildNotes, paramSeries, paramKey, paramName, effRef, refStatus } from '../../domain/findings.js';
 import { lineChart, dataTable, chartCard, bindChartToggles } from '../../charts/charts.js';
+import { PROTOCOLS, SITES, caliperResult, avgSite, ageAt, bmi, whr, whtr, whrLimit } from '../../domain/assessment.js';
 
-const KIND_CHIP = { body: 'accent', lab: 'warn', fitness: 'ok', other: 'muted' };
+const KIND_CHIP = { body: 'accent', caliper: 'accent', lab: 'warn', fitness: 'ok', posture: 'ok', photos: 'muted', other: 'muted' };
 const VERDICT = { better: ['▲ боље', 'up'], worse: ['▼ лошије', 'down'], same: ['= исто', 'same'], neutral: ['—', 'same'] };
 const REF_LBL = { low: ['испод опсега', 'bad'], high: ['изнад опсега', 'bad'], ok: ['у опсегу', 'ok'] };
 const fmtRef = (r) => (!r || (r.min === null && r.max === null) ? '—' : r.min !== null && r.max !== null ? `${fmtNum(r.min)}–${fmtNum(r.max)}` : r.min !== null ? `> ${fmtNum(r.min)}` : `< ${fmtNum(r.max)}`);
 const fmtSize = (b) => (b > 1048576 ? fmtNum(b / 1048576, 1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
-const st = { from: '', to: '', param: '' , cid: null };
+const st = { from: '', to: '', param: '', cid: null, pa: '', pb: '' };
 
 /* ------------------------------------------------------------------ */
 /* Картица „Налази“ на профилу клијента                                 */
@@ -39,6 +40,8 @@ export async function renderClientFindings(root, c) {
           <small>${(f.values || []).length} вриједности${attN.get(f.id) ? ` · прилога: ${attN.get(f.id)}` : ''}${f.note ? ' · ' + esc(f.note) : ''}</small></div>
         <span class="chip ${KIND_CHIP[f.kind]}">${FINDING_KINDS[f.kind]}</span></a>`).join('') : '<p class="empty">Још нема налаза. Додајте први дугметом „Нови налаз“.</p>'}</div>
     </section>
+
+    <div id="photocmp"></div>
 
     ${withVals.length ? `<section class="card pad stack">
       <div class="row between"><h3>Поређење</h3>
@@ -82,6 +85,25 @@ export async function renderClientFindings(root, c) {
   const fp = root.querySelector('#fpar');
   if (fp) fp.onchange = () => { st.param = fp.value; re(); };
   bindChartToggles(root);
+  drawPhotoCompare(root.querySelector('#photocmp'), findings, atts);
+}
+
+/** Двије фотографије напретка једна поред друге, по погледу (напријед/бочно/назад) */
+async function drawPhotoCompare(box, findings, atts) {
+  const photoF = findings.filter((f) => f.kind === 'photos' && atts.some((a) => a.findingId === f.id && a.mime.startsWith('image/'))).sort((a, b) => a.date.localeCompare(b.date));
+  if (!photoF.length) { box.innerHTML = ''; return; }
+  if (!photoF.some((f) => f.id === st.pa)) st.pa = photoF[0].id;
+  if (!photoF.some((f) => f.id === st.pb)) st.pb = photoF[photoF.length - 1].id;
+  const opt = (sel) => photoF.map((f) => `<option value="${f.id}" ${sel === f.id ? 'selected' : ''}>${fmtDate(f.date)}${f.title ? ' · ' + esc(f.title) : ''}</option>`).join('');
+  const pick = (fid, view) => atts.find((a) => a.findingId === fid && a.mime.startsWith('image/') && (a.note || 'other') === view);
+  const views = Object.keys(VIEWS).filter((v) => pick(st.pa, v) || pick(st.pb, v));
+  box.innerHTML = `<section class="card pad stack"><div class="row between"><h3>Фотографије напретка</h3>
+      <div class="row"><select class="inp" id="pa" style="width:auto">${opt(st.pa)}</select><span>→</span><select class="inp" id="pb" style="width:auto">${opt(st.pb)}</select></div></div>
+    ${views.map((v) => `<div><div class="lbl" style="margin-bottom:6px">${VIEWS[v]}</div><div class="grid2">${[st.pa, st.pb].map((fid) => { const a = pick(fid, v); return a ? `<img data-img="${a.id}" alt="${esc(VIEWS[v])}" style="width:100%;max-height:520px;object-fit:contain;border-radius:12px;background:var(--surface-2)">` : '<p class="empty card">Нема фотографије</p>'; }).join('')}</div></div>`).join('')}
+  </section>`;
+  for (const img of box.querySelectorAll('[data-img]')) repo.getAttachment(img.dataset.img).then((a) => { if (a) img.src = a.data; });
+  box.querySelector('#pa').onchange = (e) => { st.pa = e.target.value; drawPhotoCompare(box, findings, atts); };
+  box.querySelector('#pb').onchange = (e) => { st.pb = e.target.value; drawPhotoCompare(box, findings, atts); };
 }
 const paramNameOf = (series, k) => (series.get(k)?.[0]?.name || '?');
 
@@ -103,14 +125,44 @@ function newFindingDialog(c) {
 /* ------------------------------------------------------------------ */
 /* Уређивање налаза                                                    */
 /* ------------------------------------------------------------------ */
-const QUICK = { body: ['tezina', 'mast', 'misici', 'struk', 'kukovi', 'puls', 'pritisakS', 'pritisakD'], fitness: ['vo2', 'sklekovi', 'cucnjevi', 'plank', 'pretklon'], lab: ['glukoza', 'holesterol', 'ldl', 'hdl', 'trigliceridi', 'hemoglobin', 'vitd', 'feritin'], other: [] };
+const QUICK = { body: ['tezina', 'mast', 'misici', 'struk', 'kukovi', 'grudi', 'nadlaktica', 'butina', 'puls', 'pritisakS', 'pritisakD'], fitness: ['vo2', 'sklekovi', 'cucnjevi', 'plank', 'pretklon'], lab: ['glukoza', 'holesterol', 'ldl', 'hdl', 'trigliceridi', 'hemoglobin', 'vitd', 'feritin'], posture: ['mob_cucanj', 'mob_iskorak', 'mob_ramena', 'mob_kuk', 'mob_trup'], caliper: ['tezina'], photos: [], other: [] };
+export const POSTURE = {
+  glava: 'Глава испружена напријед', ramena: 'Заобљена рамена', kifoza: 'Појачана грудна кривина (кифоза)', lordoza: 'Појачана слабинска кривина (лордоза)',
+  karlica: 'Нагнута карлица (лијево/десно)', skolioza: 'Бочно искривљење кичме', asimetrija: 'Неједнака висина рамена', valgus: 'Кољена ка унутра (валгус)', stopala: 'Спуштени свод стопала',
+};
+export const VIEWS = { front: 'Напријед', side: 'Бочно', back: 'Назад', other: 'Друго' };
+
+/** Изведене вриједности (израчунато, означено): BMI, WHR, WHtR и резултат калипера */
+export function applyDerived(F, c) {
+  const plain = (pid) => F.values.find((v) => v.paramId === pid && !v.computed && v.value !== null && v.value !== undefined)?.value ?? null;
+  const set = (pid, value, extra = {}) => {
+    const i = F.values.findIndex((v) => v.paramId === pid && v.computed && (v.method || '') === (extra.method || ''));
+    if (value === null || value === undefined || !Number.isFinite(value)) { if (i >= 0) F.values.splice(i, 1); return; }
+    if (!extra.method && F.values.some((v) => v.paramId === pid && !v.computed)) { if (i >= 0) F.values.splice(i, 1); return; } // ручни унос има предност
+    const rec = { paramId: pid, name: PARAM[pid].name, unit: PARAM[pid].unit, value: Math.round(value * 1000) / 1000, refMin: null, refMax: null, computed: 1, ...extra };
+    if (i >= 0) Object.assign(F.values[i], rec); else F.values.push({ id: uid(), ...rec });
+  };
+  if (F.kind === 'caliper' && F.caliper) {
+    const k = F.caliper, sex = c.sex, age = ageAt(c.birthDate, F.date);
+    const sitesMm = {}; for (const [site, arr] of Object.entries(k.sites || {})) sitesMm[site] = avgSite(arr);
+    const r = caliperResult({ protocol: k.protocol, sex, age, sitesMm, weightKg: k.weightKg });
+    const M = { method: 'caliper' };
+    for (const site of Object.keys(SITES)) set('sf_' + site, PROTOCOLS[k.protocol]?.sites[sex]?.includes(site) ? sitesMm[site] : null, M);
+    set('sumaNabora', r ? r.sum : null, M); set('mast', r ? r.fatPct : null, M); set('masaMasti', r ? r.fatKg : null, M); set('lbm', r ? r.leanKg : null, M); set('tezina', k.weightKg || null);
+  }
+  const w = plain('tezina') ?? F.values.find((v) => v.paramId === 'tezina')?.value ?? null, waist = plain('struk'), hip = plain('kukovi');
+  set('bmi', bmi(w, c.heightCm), { refMin: 18.5, refMax: 24.9 });
+  set('whr', whr(waist, hip), { refMax: whrLimit(c.sex) });
+  set('whtr', whtr(waist, c.heightCm), { refMax: 0.5 });
+}
 const GROUPS = [['body', 'Тијело'], ['fitness', 'Кондиција'], ['lab', 'Лабораторија']];
 
 export async function renderEditor(main, [id]) {
   const F = await repo.getFinding(id);
   if (!F) { main.innerHTML = '<div class="wrap"><p class="empty card">Налаз није пронађен.</p></div>'; return; }
   const c = await repo.getClient(F.clientId);
-  const queue = () => queueSave('finding:' + F.id, () => repo.saveFinding(F));
+  F.values = F.values || [];
+  const queue = () => { applyDerived(F, c); queueSave('finding:' + F.id, () => repo.saveFinding(F)); };
 
   main.innerHTML = `<div class="wrap">
     <a href="#/klijent/${F.clientId}/nalazi" class="muted" style="text-decoration:none">← ${esc(fullName(c))} · налази</a>
@@ -123,6 +175,8 @@ export async function renderEditor(main, [id]) {
         <div class="field full"><label for="f-note">Напомена (необавезно)</label><textarea id="f-note" class="inp">${esc(F.note || '')}</textarea></div>
       </div>
     </div>
+
+    <div id="special"></div>
 
     <section class="card pad stack">
       <h2>Документ налаза</h2>
@@ -148,7 +202,7 @@ export async function renderEditor(main, [id]) {
   const $ = (s) => main.querySelector(s);
 
   $('#f-date').onchange = () => { if (isValidDate($('#f-date').value)) { F.date = $('#f-date').value; queue(); } };
-  $('#f-kind').onchange = () => { F.kind = $('#f-kind').value; queue(); drawQuick(); };
+  $('#f-kind').onchange = () => { F.kind = $('#f-kind').value; queue(); drawQuick(); drawSpecial(); drawVals(); };
   $('#f-title').oninput = () => { F.title = $('#f-title').value; queue(); };
   $('#f-note').oninput = () => { F.note = $('#f-note').value; queue(); };
   $('#f-text').oninput = () => { F.text = $('#f-text').value; queue(); };
@@ -170,6 +224,7 @@ export async function renderEditor(main, [id]) {
   const paramSelect = (v) => `<select class="inp" data-k="param">${GROUPS.map(([g, gl]) => `<optgroup label="${gl}">${PARAMS.filter((p) => p.kind === g).map((p) => `<option value="${p.id}" ${v.paramId === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</optgroup>`).join('')}<option value="" ${!v.paramId ? 'selected' : ''}>Друго (свој назив)…</option></select>`;
   const drawVals = (focusLast = false) => {
     $('#vals').innerHTML = F.values.length ? `<div class="stack">${F.values.map((v) => {
+      if (v.computed) { const rs0 = REF_LBL[refStatus(v.value, effRef(v))]; return `<div class="card pad row between" style="background:var(--surface-2)"><span><b>${esc(paramName(v))}</b> <span class="chip accent">израчунато</span></span><span class="num"><b>${fmtNum(v.value, v.unit === '' ? 3 : 1)}</b> ${esc(v.unit || '')} ${rs0 ? `<span class="chip ${rs0[1]}">${rs0[0]}</span>` : ''}</span></div>`; }
       const rs = REF_LBL[refStatus(v.value, effRef(v))];
       const ref0 = effRef(v);
       return `<div class="card pad" data-row="${v.id}" style="background:var(--surface-2)"><div class="fgrid" style="align-items:end">
@@ -182,6 +237,7 @@ export async function renderEditor(main, [id]) {
         <div class="full row between">${rs ? `<span class="chip ${rs[1]}">${rs[0]}</span>` : '<span></span>'}<button class="btn sm danger" data-rm="${v.id}">Уклони</button></div>
       </div></div>`; }).join('')}</div>` : '<p class="empty">Још нема вриједности. Додајте параметар, изаберите из брзог избора или препознајте вриједности из PDF-а/текста.</p>';
     main.querySelectorAll('[data-row]').forEach((row) => {
+      if (!row.querySelector('[data-rm]')) return;
       const v = F.values.find((x) => x.id === row.dataset.row);
       row.querySelectorAll('[data-k]').forEach((inp) => {
         const k = inp.dataset.k;
@@ -295,7 +351,64 @@ export async function renderEditor(main, [id]) {
     drawAtts();
   };
 
-  drawQuick(); drawVals(); drawAtts();
+  /* ---------- посебни дијелови: калипер, држање, фотографије ---------- */
+  function drawSpecial() {
+    const box = $('#special');
+    if (F.kind === 'caliper') {
+      F.caliper = F.caliper || { protocol: 'jp3', sites: {}, weightKg: null };
+      const k = F.caliper, sex = c.sex, age = ageAt(c.birthDate, F.date);
+      const sites = sex ? PROTOCOLS[k.protocol].sites[sex] : [];
+      const sitesMm = {}; for (const st of sites) sitesMm[st] = avgSite(k.sites[st]);
+      const r = sex ? caliperResult({ protocol: k.protocol, sex, age, sitesMm, weightKg: k.weightKg }) : null;
+      box.innerHTML = `<section class="card pad stack"><h2>Калипер — кожни набори</h2>
+        ${!sex || age === null ? '<div class="banner warn"><div>За прорачун су потребни <b>пол и датум рођења</b> клијента (профил → Измијени → Подаци за прорачуне).</div></div>' : ''}
+        <div class="fgrid">
+          <div class="field"><label for="k-prot">Протокол</label><select id="k-prot" class="inp">${Object.entries(PROTOCOLS).map(([id, p]) => `<option value="${id}" ${k.protocol === id ? 'selected' : ''}>${p.name}</option>`).join('')}</select></div>
+          <div class="field"><label for="k-w">Тјелесна маса (kg)</label><input id="k-w" class="inp" inputmode="decimal" value="${k.weightKg ? fmtNum(k.weightKg) : ''}" placeholder="за масу масти и LBM"></div>
+        </div>
+        <p class="small muted">Мјерите на десној страни тијела, 2–3 пута на сваком мјесту (апликација рачуна просјек). Унесите у милиметрима.</p>
+        ${sites.length ? `<div class="tscroll"><table class="tbl"><thead><tr><th>Мјесто</th><th class="r">1. мјерење</th><th class="r">2.</th><th class="r">3.</th><th class="r">Просјек</th></tr></thead><tbody>
+          ${sites.map((st) => `<tr><td>${esc(SITES[st])}</td>${[0, 1, 2].map((i) => `<td class="r"><input class="inp" style="width:80px;text-align:center" inputmode="decimal" data-site="${st}" data-i="${i}" value="${k.sites[st]?.[i] ? fmtNum(k.sites[st][i]) : ''}"></td>`).join('')}<td class="r num">${sitesMm[st] ? fmtNum(sitesMm[st], 1) : '—'}</td></tr>`).join('')}
+        </tbody></table></div>` : ''}
+        ${r ? `<div class="cmp">
+            <div class="c"><div class="lbl">Тјелесна маст</div><div class="v">${fmtNum(r.fatPct, 1)} %</div></div>
+            <div class="c"><div class="lbl">Маса масти</div><div class="v">${r.fatKg === null ? '—' : fmtNum(r.fatKg, 1) + ' kg'}</div></div>
+            <div class="c"><div class="lbl">Немасна маса (LBM)</div><div class="v">${r.leanKg === null ? '—' : fmtNum(r.leanKg, 1) + ' kg'}</div></div>
+            <div class="c"><div class="lbl">Збир набора</div><div class="v">${fmtNum(r.sum, 1)} mm</div><div class="small muted">густина ${fmtNum(r.density, 4)}</div></div>
+          </div><p class="small muted">Процјена: ${esc(PROTOCOLS[k.protocol].name)} → густина тијела → % масти по Siri формули. Вриједности се аутоматски уписују у „Вриједности“ испод и улазе у поређење и графиконе.</p>`
+          : sex && age !== null ? '<p class="small muted">Унесите све наборе за изабрани протокол.</p>' : ''}
+      </section>`;
+      $('#k-prot').onchange = () => { k.protocol = $('#k-prot').value; queue(); drawSpecial(); drawVals(); };
+      $('#k-w').onchange = () => { const v = parseNum($('#k-w').value); if (Number.isNaN(v)) return toast('Маса мора бити број.', 'bad'); k.weightKg = v; queue(); drawSpecial(); drawVals(); };
+      box.querySelectorAll('[data-site]').forEach((inp) => (inp.onchange = () => {
+        const v = parseNum(inp.value);
+        if (Number.isNaN(v) || (v !== null && (v <= 0 || v > 100))) { inp.classList.add('bad'); return toast('Набор: број од 1 до 100 mm.', 'bad'); }
+        const arr = (k.sites[inp.dataset.site] = k.sites[inp.dataset.site] || [null, null, null]); arr[Number(inp.dataset.i)] = v; queue(); drawSpecial(); drawVals();
+      }));
+    } else if (F.kind === 'posture') {
+      F.checks = F.checks || {};
+      box.innerHTML = `<section class="card pad stack"><h2>Процјена држања</h2><p class="small muted">Означите уочено (посматрање сприједа, бочно и позади). Оцјене покретљивости 0–3 додајте брзим избором у „Вриједности“: 3 = без ограничења, 2 = уз компензацију, 1 = не може, 0 = бол.</p>
+        <div class="chips">${Object.entries(POSTURE).map(([key, l]) => `<button type="button" class="qchip ${F.checks[key] ? 'on' : ''}" data-chk="${key}">${esc(l)}</button>`).join('')}</div></section>`;
+      box.querySelectorAll('[data-chk]').forEach((b) => (b.onclick = () => { F.checks[b.dataset.chk] = F.checks[b.dataset.chk] ? 0 : 1; b.classList.toggle('on'); queue(); }));
+    } else if (F.kind === 'photos') {
+      box.innerHTML = `<section class="card pad stack"><h2>Фотографије напретка</h2>
+        ${c.consentPhotos ? '' : '<div class="banner warn"><div>У профилу клијента није означена <b>сагласност за фотографисање</b>.</div></div>'}
+        <p class="small muted">Сликајте увијек под истим условима (исто мјесто, свјетло, одјећа, удаљеност). Изаберите поглед, па додајте фотографију — камером или из галерије. Поређење двије фотографије је у картици „Мјерења и налази“.</p>
+        <div class="row"><div class="seg" id="view-seg">${Object.entries(VIEWS).map(([k2, l]) => `<button data-view="${k2}" class="${k2 === 'front' ? 'on' : ''}">${l}</button>`).join('')}</div>
+          <label class="btn primary" style="cursor:pointer">+ Фотографија<input type="file" accept="image/*" data-photo hidden></label></div></section>`;
+      let view = 'front';
+      box.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => { view = b.dataset.view; box.querySelectorAll('[data-view]').forEach((x) => x.classList.toggle('on', x === b)); }));
+      box.querySelector('[data-photo]').onchange = async (e) => {
+        const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+        if (file.size > 15 * 1024 * 1024) return toast('Фотографија је већа од 15 MB.', 'bad');
+        const dataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error); fr.readAsDataURL(file); });
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        if ((await save(() => repo.addAttachment({ findingId: F.id, name: `${VIEWS[view]} ${F.date}.${ext}`, mime: file.type || 'image/jpeg', size: file.size, dataUrl, note: view }))) !== null) { toast('Фотографија је додата.'); drawAtts(); }
+      };
+    } else box.innerHTML = '';
+  }
+
+  drawQuick(); drawSpecial(); drawVals(); drawAtts();
 }
 
 export { paramName };

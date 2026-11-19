@@ -381,3 +381,19 @@ textarea.inp{resize:vertical;min-height:80px}
 .syncbar{position:fixed;left:14px;bottom:14px;z-index:40;cursor:pointer;font-size:13px;font-weight:600;padding:6px 12px;border-radius:30px;background:var(--surface);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--line-2);color:var(--accent)}
 .syncbar.busy{color:var(--warn)} .syncbar.bad{color:var(--bad);border-color:var(--bad)}
 @media (min-width:1024px){.syncbar{left:234px}}
+
+/* извјештај за клијента и штампа */
+.paper{background:var(--surface-solid);border:1px solid var(--line);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:14px}
+.paper h2{font-size:16px;margin-top:8px;color:var(--accent)}
+.paper .bar{height:10px;border-radius:6px;background:var(--line);overflow:hidden}.paper .bar>div{height:100%;background:var(--grad)}
+@media print{
+  @page{size:A4;margin:12mm}
+  html,body{background:#fff!important;color:#000!important}
+  :root{--fg:#000;--muted:#444;--line:#ccc;--line-2:#bbb;--surface:#fff;--surface-solid:#fff;--surface-2:#f4f6f9}
+  .side,.savebar,.syncbar,.noprint,#update,.toast{display:none!important}
+  .app{display:block}.main{padding:0}.wrap{max-width:none}
+  .paper{border:0;padding:0;border-radius:0}
+  .paper h1{color:#000;-webkit-text-fill-color:#000;background:none}
+  .cmp .c,.tbl th,.tbl td{break-inside:avoid}
+  *{box-shadow:none!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}

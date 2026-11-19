@@ -2,18 +2,20 @@
 // Пренос датотеком НИЈЕ аутоматска синхронизација: свака размјена је ручна.
 import { SYNC_TABLES, SCHEMA_VERSION } from '../data/db.js';
 import { uid, nowIso, isValidDate } from '../lib/util.js';
-import { validateMood, validateSleep, SET_NUM_FIELDS, validateNonNeg } from '../domain/rules.js';
-import { validatePayment } from '../domain/membership.js';
+import { validateMood, validateSleep, SET_NUM_FIELDS, validateNonNeg, validateSessionExtra, validateClient } from '../domain/rules.js';
+import { validatePayment, validatePackage } from '../domain/membership.js';
+import { validateGoal } from '../domain/goals.js';
 import { validateFinding } from '../domain/findings.js';
 
 export const FORMAT = 'trener-evidencija-backup';
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
 
 export const TABLE_LABEL = {
   clients: 'Клијенти', exercises: 'Вјежбе', programs: 'Програми', sessions: 'Тренинзи',
   sessionExercises: 'Вјежбе у тренинзима', sets: 'Серије', options: 'Изборне вриједности',
   payments: 'Уплате чланарине', findings: 'Налази и анализе', attachments: 'Приложене датотеке налаза',
+  packages: 'Пакети тренинга', goals: 'Циљеви',
 };
 
 const baseKey = (t, id) => `${t}/${id}`;
@@ -74,6 +76,11 @@ export function migrateBackup(obj) {
     if (b.data && typeof b.data === 'object') for (const t of ['payments', 'findings', 'attachments']) if (b.data[t] === undefined) b.data[t] = [];
     b.formatVersion = 2;
   }
+  // formatVersion 2 → 3: пакети тренинга и циљеви
+  if (b.formatVersion === 2) {
+    if (b.data && typeof b.data === 'object') for (const t of ['packages', 'goals']) if (b.data[t] === undefined) b.data[t] = [];
+    b.formatVersion = 3;
+  }
   return b;
 }
 
@@ -123,6 +130,10 @@ export function validateBackup(obj) {
         }
         if (r.done !== 0 && r.done !== 1) errors.push(`${where}: неисправно поље „завршено“.`);
       }
+      if (t === 'clients') { const { firstName, lastName, ...rest } = validateClient(r); const m = Object.values(rest)[0]; if (m) errors.push(`${where}: ${m}`); }
+      if (t === 'sessions') { const m = Object.values(validateSessionExtra(r))[0]; if (m) errors.push(`${where}: ${m}`); }
+      if (t === 'packages') { const e = Object.values(validatePackage(r)); if (e.length) errors.push(`${where}: ${e[0]}`); }
+      if (t === 'goals') { const e = Object.values(validateGoal(r)); if (e.length) errors.push(`${where}: ${e[0]}`); }
       if (t === 'payments') { const e = Object.values(validatePayment(r)); if (e.length) errors.push(`${where}: ${e[0]}`); }
       if (t === 'findings') { const e = Object.values(validateFinding(r)); if (e.length) errors.push(`${where}: ${e[0]}`); }
       if (t === 'attachments') {
@@ -152,6 +163,8 @@ export function describeRecord(t, r, ctx = {}) {
     case 'options': return 'Изборне вриједности';
     case 'payments': return `Уплата ${r.paidDate} (${r.periodFrom} – ${r.periodTo})${ctx.clientName ? ' · ' + ctx.clientName(r.clientId) : ''}`;
     case 'findings': return `Налаз ${r.date}${r.title ? ' „' + r.title + '“' : ''}${ctx.clientName ? ' · ' + ctx.clientName(r.clientId) : ''}`;
+    case 'packages': return `Пакет ${r.total} тренинга од ${r.startDate}${ctx.clientName ? ' · ' + ctx.clientName(r.clientId) : ''}`;
+    case 'goals': return `Циљ „${r.title}“${ctx.clientName ? ' · ' + ctx.clientName(r.clientId) : ''}`;
     case 'attachments': return `Прилог „${r.name}“${ctx.clientName ? ' · ' + ctx.clientName(r.clientId) : ''}`;
     default: return r.id;
   }

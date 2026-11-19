@@ -7,7 +7,7 @@
 // вриједности клијента треба упутити љекару.
 import { normSearch, isValidDate } from '../lib/util.js';
 
-export const FINDING_KINDS = { body: 'Мјерење тијела', lab: 'Лабораторијски налаз', fitness: 'Тест кондиције', other: 'Друго' };
+export const FINDING_KINDS = { body: 'Мјерење тијела', caliper: 'Калипер (кожни набори)', lab: 'Лабораторијски налаз', fitness: 'Тест кондиције', posture: 'Држање и покретљивост', photos: 'Фотографије напретка', other: 'Друго' };
 
 /**
  * dir: 'down' — мање је боље; 'up' — више је боље; 'range' — најбоље унутар референтног опсега;
@@ -24,6 +24,17 @@ export const PARAMS = [
     adviceWorse: 'Проценат масти расте: повећати дневну активност и аеробни рад (2–3 пута седмично), задржати тренинг снаге и размотрити исхрану.' },
   { id: 'misici', name: 'Мишићна маса', unit: 'kg', kind: 'body', dir: 'up', aliases: ['мишицна маса', 'скелетна мишицна маса', 'мисицна маса', 'muscle mass', 'smm', 'смм', 'скелетни мисици'],
     adviceWorse: 'Мишићна маса опада: прогресивно оптерећење у тренингу снаге, довољно протеина и опоравка (сан).' },
+  { id: 'masaMasti', name: 'Маса масти', unit: 'kg', kind: 'body', dir: 'down', aliases: ['маса масти', 'масна маса', 'fat mass', 'бфм', 'bfm'],
+    adviceWorse: 'Маса масти расте: више укупне активности и аеробног рада уз тренинг снаге; размотрити исхрану.' },
+  { id: 'lbm', name: 'Немасна маса (LBM)', unit: 'kg', kind: 'body', dir: 'up', aliases: ['немасна маса', 'безмасна маса', 'lean body mass', 'лбм', 'ffm', 'ффм'],
+    adviceWorse: 'Немасна маса опада: нагласак на тренингу снаге, протеинима и опоравку; провјерити да дефицит калорија није превелик.' },
+  { id: 'whr', name: 'Однос струк/кукови (WHR)', unit: '', kind: 'body', dir: 'down', aliases: ['whr', 'однос струк кукови'],
+    adviceHigh: 'WHR изнад границе ризика (масноћа око стомака): аеробни рад, тренинг снаге и исхрана.' },
+  { id: 'whtr', name: 'Однос струк/висина (WHtR)', unit: '', kind: 'body', dir: 'down', refMax: 0.5, aliases: ['whtr', 'однос струк висина'],
+    adviceHigh: 'Струк већи од половине висине: повећан кардиометаболички ризик — смањење масти око стомака је приоритет.' },
+  { id: 'sumaNabora', name: 'Збир кожних набора', unit: 'mm', kind: 'body', dir: 'down', aliases: ['збир набора', 'сума набора'] },
+  ...['chest:Набор: груди', 'midaxillary:Набор: средња пазушна', 'triceps:Набор: трицепс', 'biceps:Набор: бицепс', 'subscapular:Набор: испод лопатице', 'abdomen:Набор: стомак', 'suprailiac:Набор: изнад кука', 'thigh:Набор: бутина']
+    .map((x) => { const k = x.slice(0, x.indexOf(':')), n = x.slice(x.indexOf(':') + 1); return { id: 'sf_' + k, name: n, unit: 'mm', kind: 'body', dir: 'down', aliases: [] }; }),
   { id: 'visceralna', name: 'Висцерална маст', unit: 'ниво', kind: 'body', dir: 'down', refMax: 9, aliases: ['висцерална маст', 'висцерална масноца', 'visceral fat', 'виф'],
     adviceHigh: 'Висцерална маст повишена: редован аеробни рад умјереног интензитета уз тренинг снаге; исхрана.' },
   { id: 'voda', name: 'Укупна вода у тијелу', unit: '%', kind: 'body', dir: 'none', aliases: ['укупна вода', 'вода у тијелу', 'вода у телу', 'tbw', 'body water'] },
@@ -45,6 +56,11 @@ export const PARAMS = [
   { id: 'sklekovi', name: 'Склекови (макс. понављања)', unit: 'пон.', kind: 'fitness', dir: 'up', aliases: ['склекови', 'склек', 'push up', 'pushup'] },
   { id: 'cucnjevi', name: 'Чучњеви за 1 мин', unit: 'пон.', kind: 'fitness', dir: 'up', aliases: ['цуцњеви', 'цуцањ за', 'squat test'] },
   { id: 'plank', name: 'Пречка/планк – издржај', unit: 's', kind: 'fitness', dir: 'up', aliases: ['планк', 'plank', 'издрзај'] },
+  { id: 'mob_cucanj', name: 'Покретљивост: дубоки чучањ (0–3)', unit: 'оцјена', kind: 'fitness', dir: 'up', refMin: 2, aliases: [], adviceLow: 'Ограничен дубоки чучањ: мобилност скочног зглоба и кука, рад на техници са мањим оптерећењем.' },
+  { id: 'mob_iskorak', name: 'Покретљивост: искорак у линији (0–3)', unit: 'оцјена', kind: 'fitness', dir: 'up', refMin: 2, aliases: [], adviceLow: 'Слабији искорак: стабилност кука и равнотежа, једноножне вјежбе.' },
+  { id: 'mob_ramena', name: 'Покретљивост рамена (0–3)', unit: 'оцјена', kind: 'fitness', dir: 'up', refMin: 2, aliases: [], adviceLow: 'Ограничена покретљивост рамена: мобилност грудног дијела кичме и рамена; опрез са потиском изнад главе.' },
+  { id: 'mob_kuk', name: 'Подизање опружене ноге (0–3)', unit: 'оцјена', kind: 'fitness', dir: 'up', refMin: 2, aliases: [], adviceLow: 'Скраћене задње ложе: истезање и мобилност кука.' },
+  { id: 'mob_trup', name: 'Стабилност трупа (0–3)', unit: 'оцјена', kind: 'fitness', dir: 'up', refMin: 2, aliases: [], adviceLow: 'Слабија стабилност трупа: вјежбе кора (планк варијанте, антиротација).' },
   { id: 'pretklon', name: 'Претклон у сједу (флексибилност)', unit: 'cm', kind: 'fitness', dir: 'up', aliases: ['претклон', 'sit and reach', 'флексибилност'],
     adviceWorse: 'Флексибилност опада: редовне вјежбе мобилности и истезања послије тренинга.' },
   // --- лабораторија ---
@@ -90,8 +106,10 @@ export const PARAMS = [
 export const PARAM = Object.fromEntries(PARAMS.map((p) => [p.id, p]));
 
 /** Кључ параметра за поређење кроз различите налазе */
-export const paramKey = (v) => (v.paramId && PARAM[v.paramId] ? v.paramId : 'custom:' + normSearch(v.name || '').trim());
-export const paramName = (v) => (v.paramId && PARAM[v.paramId] ? PARAM[v.paramId].name : v.name || '?');
+// Вриједност измјерена посебном методом (нпр. % масти калипером) пореди се само са истом методом.
+export const METHOD_LABEL = { caliper: 'калипер' };
+export const paramKey = (v) => (v.paramId && PARAM[v.paramId] ? v.paramId + (v.method ? '@' + v.method : '') : 'custom:' + normSearch(v.name || '').trim());
+export const paramName = (v) => (v.paramId && PARAM[v.paramId] ? PARAM[v.paramId].name + (v.method ? ` (${METHOD_LABEL[v.method] || v.method})` : '') : v.name || '?');
 
 /* ------------------------------------------------------------------ */
 /* Препознавање вриједности из текста налаза                            */

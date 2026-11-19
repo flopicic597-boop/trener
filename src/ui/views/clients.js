@@ -1,6 +1,7 @@
 // Списак клијената, претрага, додавање/измјена, архива.
 import { repo, openModal, closeModal, toast, initials, fullName } from '../core.js';
-import { esc, fmtDate, normSearch, today, isValidDate } from '../../lib/util.js';
+import { esc, fmtDate, normSearch, today, isValidDate, fmtNum, parseNum } from '../../lib/util.js';
+import { ACTIVITY } from '../../domain/assessment.js';
 import { STATUS } from '../../domain/rules.js';
 import { allStatuses, statusChip } from './membership.js';
 
@@ -51,7 +52,7 @@ export async function render(main) {
 /** Образац клијента (нови или измјена) */
 export async function clientForm(client, onSaved) {
   const opts = await repo.getOptions();
-  const c = client || { firstName: '', lastName: '', startDate: today(), goal: '', note: '', phone: '', email: '' };
+  const c = client || { firstName: '', lastName: '', startDate: today(), goal: '', note: '', phone: '', email: '', sex: '', birthDate: '', heightCm: null, activity: null, consentDate: '', consentPhotos: 0 };
   const m = openModal({
     title: client ? 'Измјена клијента' : 'Нови клијент',
     body: `<form class="fgrid" id="cf" novalidate>
@@ -61,6 +62,18 @@ export async function clientForm(client, onSaved) {
       <div class="field"><label for="gl">Циљ</label><input id="gl" class="inp" name="goal" list="goals" value="${esc(c.goal)}" autocomplete="off">
         <datalist id="goals">${opts.goalPresets.map((g) => `<option value="${esc(g)}">`).join('')}</datalist></div>
       <div class="field full"><label for="nt">Напомена (необавезно)</label><textarea id="nt" class="inp" name="note">${esc(c.note)}</textarea></div>
+      <details class="full" ${client ? '' : 'open'}><summary class="lbl" style="cursor:pointer;min-height:40px;display:flex;align-items:center">Подаци за прорачуне (калипер, BMI, исхрана, пулсне зоне)</summary>
+        <div class="fgrid" style="margin-top:8px">
+          <div class="field"><span class="lbl">Пол</span><div class="seg" id="sexseg">${[['m', 'Мушки'], ['f', 'Женски']].map(([k, v]) => `<button type="button" data-sex="${k}" class="${c.sex === k ? 'on' : ''}">${v}</button>`).join('')}</div></div>
+          <div class="field"><label for="bd">Датум рођења</label><input id="bd" class="inp" type="date" name="birthDate" value="${esc(c.birthDate || '')}"></div>
+          <div class="field"><label for="hc">Висина (cm)</label><input id="hc" class="inp" name="heightCm" inputmode="decimal" value="${c.heightCm ? fmtNum(c.heightCm) : ''}" autocomplete="off"></div>
+          <div class="field"><label for="ac">Ниво активности</label><select id="ac" class="inp" name="activity"><option value="">—</option>${Object.entries(ACTIVITY).map(([k, v]) => `<option value="${k}" ${Number(k) === c.activity ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+        </div></details>
+      <details class="full"><summary class="lbl" style="cursor:pointer;min-height:40px;display:flex;align-items:center">Сагласност клијента (обрада података, фотографије)</summary>
+        <div class="fgrid" style="margin-top:8px">
+          <div class="field"><label for="cd">Датум потписане сагласности</label><input id="cd" class="inp" type="date" name="consentDate" value="${esc(c.consentDate || '')}"></div>
+          <label class="row field" style="align-items:center"><input type="checkbox" name="consentPhotos" value="1" ${c.consentPhotos ? 'checked' : ''} style="width:24px;height:24px"> Дозвољено фотографисање напретка</label>
+        </div></details>
       <details class="full"><summary class="lbl" style="cursor:pointer;min-height:40px;display:flex;align-items:center">Контакт (необавезно)</summary>
         <div class="fgrid" style="margin-top:8px">
           <div class="field"><label for="ph">Телефон</label><input id="ph" class="inp" name="phone" type="tel" value="${esc(c.phone || '')}"></div>
@@ -70,9 +83,14 @@ export async function clientForm(client, onSaved) {
     </form>`,
     foot: `<button class="btn" data-close>Одустани</button><button class="btn primary" id="csave">Сачувај</button>`,
   });
+  let sex = c.sex || '';
+  m.querySelectorAll('[data-sex]').forEach((b) => (b.onclick = () => { sex = sex === b.dataset.sex ? '' : b.dataset.sex; m.querySelectorAll('[data-sex]').forEach((x) => x.classList.toggle('on', x.dataset.sex === sex)); }));
   const submit = async () => {
     const fd = Object.fromEntries(new FormData(m.querySelector('#cf')));
     if (fd.startDate && !isValidDate(fd.startDate)) { m.querySelector('#cerr').textContent = 'Неисправан датум.'; return; }
+    const h = parseNum(fd.heightCm);
+    if (Number.isNaN(h)) { m.querySelector('#cerr').textContent = 'Висина мора бити број (нпр. 178).'; return; }
+    Object.assign(fd, { sex, heightCm: h, activity: fd.activity ? Number(fd.activity) : null, consentPhotos: fd.consentPhotos ? 1 : 0 });
     const data = client ? { ...fd, id: client.id } : fd;
     let saved;
     try { saved = await repo.saveClient(data); } catch (e) { m.querySelector('#cerr').textContent = 'Није сачувано: ' + (e?.message || e); return; }

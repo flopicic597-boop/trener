@@ -4,6 +4,8 @@ import { esc, fmtDate, fmtDateLong, fmtNum, parseNum, parseDuration, isValidDate
 import { STATUS, STATUS_ORDER, MOOD_LABEL, TEMPO_HELP, fmtTempo, normalizeTempo, validateSet } from '../../domain/rules.js';
 import { TYPE_SHORT } from '../../data/exercises-seed.js';
 import { pickExercise, scheduleDialog } from '../dialogs.js';
+import { activeInjuries, injuryWarnings } from './health.js';
+import { e1rm, sessionLoad } from '../../domain/assessment.js';
 
 let ctx = null; // {session, client, exMap, opts, full}
 
@@ -20,6 +22,7 @@ export async function render(main, [id]) {
     <div class="phead"><div><div class="eyebrow">${esc(fullName(client))}</div><h1>Тренинг</h1><div class="muted">${fmtDateLong(s.date)}</div></div>
       <div class="row"><button class="btn" data-act="copy">Копирај…</button><button class="btn" data-act="tpl">Сачувај као програм</button><button class="btn danger" data-act="del">Обриши</button></div></div>
 
+    ${activeInjuries(client).length ? `<div class="banner bad"><div><b>Активне повреде/ограничења:</b> ${activeInjuries(client).map((i) => esc(i.area) + (i.note ? ' — ' + esc(i.note) : '')).join('; ')}</div></div>` : ''}
     <section class="card pad stack">
       <div class="fgrid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
         <div class="field"><label for="s-date">Датум</label><input id="s-date" class="inp" type="date" value="${s.date}"></div>
@@ -40,6 +43,19 @@ export async function render(main, [id]) {
       </div>
       <p class="err" id="sleep-err"></p>
       <div class="field"><label for="s-note">Напомена (необавезно)</label><textarea id="s-note" class="inp" rows="2">${esc(s.note || '')}</textarea></div>
+    </section>
+
+    <section class="card pad stack" id="effort">
+      <div class="lbl">Опоравак прије тренинга (1 = лоше, 5 = одлично)</div>
+      <div class="fgrid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+        ${[['soreness', 'Бол у мишићима (1 = јак, 5 = нема)'], ['energy', 'Енергија'], ['stress', 'Стрес (1 = велик, 5 = нема)']].map(([k, l]) => `<div class="field"><span class="small muted">${l}</span><div class="seg">${[1, 2, 3, 4, 5].map((v) => `<button data-rec="${k}" data-v="${v}" class="${s[k] === v ? 'on' : ''}">${v}</button>`).join('')}</div></div>`).join('')}
+      </div>
+      <div class="lbl">Напор и трајање (послије тренинга)</div>
+      <div class="field"><span class="small muted">Колико је тренинг био тежак (RPE): 1 = веома лако, 10 = максимално</span>
+        <div class="chips">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => `<button class="qchip ${s.rpe === v ? 'on' : ''}" data-rpe="${v}">${v}</button>`).join('')}<button class="qchip" data-rpe="">✕</button></div></div>
+      <div class="row" style="align-items:flex-end"><div class="field" style="width:150px"><label for="s-dur">Трајање (мин.)</label><input id="s-dur" class="inp" inputmode="numeric" value="${s.durationMin ?? ''}"></div>
+        <div class="chips">${[30, 45, 60, 75, 90].map((v) => `<button class="qchip" data-dur="${v}">${v}</button>`).join('')}</div>
+        <span class="small muted" id="s-load">${sessionLoad({ ...s, status: 'done' }) ? 'Оптерећење тренинга: <b>' + sessionLoad({ ...s, status: 'done' }) + '</b> (RPE × мин.)' : ''}</span></div>
     </section>
 
     <details class="card pad"><summary class="lbl" style="cursor:pointer;min-height:36px;display:flex;align-items:center">Шта значи темпо (нпр. 3–1–1–0)?</summary><p class="small" style="margin-top:6px">${esc(TEMPO_HELP)}</p></details>
@@ -70,6 +86,24 @@ function bindHeader(main) {
   };
   main.querySelectorAll('[data-mood]').forEach((b) => (b.onclick = () => setMood(Number(b.dataset.mood))));
   main.querySelector('[data-act="mood-clear"]').onclick = () => setMood(null);
+  const loadTxt = () => { const l = sessionLoad({ ...ctx.session, status: 'done' }); main.querySelector('#s-load').innerHTML = l ? 'Оптерећење тренинга: <b>' + l + '</b> (RPE × мин.)' : ''; };
+  main.querySelectorAll('[data-rec]').forEach((b) => (b.onclick = async () => {
+    const k = b.dataset.rec, v = Number(b.dataset.v), nv = ctx.session[k] === v ? null : v;
+    if (await upd({ [k]: nv })) main.querySelectorAll(`[data-rec="${k}"]`).forEach((x) => x.classList.toggle('on', Number(x.dataset.v) === nv));
+  }));
+  main.querySelectorAll('[data-rpe]').forEach((b) => (b.onclick = async () => {
+    const v = b.dataset.rpe ? Number(b.dataset.rpe) : null;
+    if (await upd({ rpe: v })) { main.querySelectorAll('[data-rpe]').forEach((x) => x.classList.toggle('on', x.dataset.rpe !== '' && Number(x.dataset.rpe) === v)); loadTxt(); }
+  }));
+  const durInp = main.querySelector('#s-dur');
+  const setDur = async (raw) => {
+    const v = parseNum(raw);
+    if (Number.isNaN(v) || (v !== null && (v <= 0 || v > 600))) { durInp.classList.add('bad'); return toast('Трајање: број минута од 1 до 600.', 'bad'); }
+    durInp.classList.remove('bad');
+    if (await upd({ durationMin: v })) loadTxt();
+  };
+  durInp.onchange = () => setDur(durInp.value);
+  main.querySelectorAll('[data-dur]').forEach((b) => (b.onclick = () => { durInp.value = b.dataset.dur; setDur(b.dataset.dur); }));
   const sleepInp = main.querySelector('#s-sleep'), sleepErr = main.querySelector('#sleep-err');
   const setSleep = (raw, immediate) => {
     const v = parseNum(raw);
@@ -87,6 +121,8 @@ function bindHeader(main) {
   main.querySelector('[data-act="addex"]').onclick = () => pickExercise(async (ex) => {
     const se = await save(() => repo.addExerciseToSession(s.id, ex.id, 1));
     if (se) { ctx.exMap.set(ex.id, ex); await drawExercises(); document.getElementById('se-' + se.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    const w = injuryWarnings(ctx.client, ex);
+    if (w.length) toast('⚠ Пажња, повреда клијента: ' + w.join('; '), 'bad');
   });
   main.querySelector('[data-act="del"]').onclick = async () => {
     if (!(await confirmDlg(`Трајно уклонити овај тренинг (${fmtDate(s.date)}) са свим серијама? Ако тренинг није одржан, боље је поставити статус „Прескочен“.`, { okText: 'Обриши тренинг', danger: true }))) return;
@@ -155,7 +191,7 @@ async function drawExercises() {
     const ex = ctx.exMap.get(se.exerciseId) || { name: 'Непозната вјежба', type: 'load', category: '' };
     const doneN = se.sets.filter((x) => x.done).length;
     return `<section class="card exc" style="${katStyle(ex.category)}" id="se-${se.id}" data-se="${se.id}">
-      <div class="exhead"><h3>${idx + 1}. ${esc(ex.name)}</h3><span class="kat" style="${katStyle(ex.category)}">${esc(ex.category)}</span><span class="chip muted">${TYPE_SHORT[ex.type]}</span><span class="chip ${doneN === se.sets.length && doneN ? 'ok' : 'muted'}">${doneN}/${se.sets.length}</span>
+      <div class="exhead"><h3>${idx + 1}. ${esc(ex.name)}</h3><span class="kat" style="${katStyle(ex.category)}">${esc(ex.category)}</span><span class="chip muted">${TYPE_SHORT[ex.type]}</span><span class="chip ${doneN === se.sets.length && doneN ? 'ok' : 'muted'}">${doneN}/${se.sets.length}</span>${injuryWarnings(ctx.client, ex).length ? `<span class="chip bad" title="${esc(injuryWarnings(ctx.client, ex).join('; '))}">⚠ повреда: ${esc(injuryWarnings(ctx.client, ex)[0])}</span>` : ''}
         <div class="row" style="gap:4px"><button class="btn icon sm" data-mv="-1" ${idx === 0 ? 'disabled' : ''} aria-label="Помјери горе">↑</button><button class="btn icon sm" data-mv="1" ${idx === full.exercises.length - 1 ? 'disabled' : ''} aria-label="Помјери доле">↓</button><button class="btn icon sm danger" data-rmex aria-label="Уклони вјежбу">✕</button></div></div>
       <div class="prev">${prevText(ex, prevs[idx])}</div>
       <div class="presets"><span class="lbl">Темпо за све:</span>${opts.tempoPresets.map((t) => `<button class="qchip" data-alltempo="${esc(t)}">${esc(fmtTempo(t))}</button>`).join('')}</div>
@@ -223,6 +259,7 @@ function bindExercises(root) {
         if (st.durationSec === null && st.planDurationSec !== null) ch.durationSec = st.planDurationSec;
       }
       const ok = await save(() => repo.updateSet(setId, ch));
+      if (ok && on) checkRecord(ok);
       if (ok && on && ctx.session.status === 'planned') {
         ctx.session = await repo.updateSession(ctx.session.id, { status: 'active' });
         ctx.main.querySelectorAll('[data-st]').forEach((x) => x.classList.toggle('on', x.dataset.st === 'active'));
@@ -254,4 +291,14 @@ async function flushThen(fn) {
 
   await flushSaves();
   return fn();
+}
+
+/** Обавјештење „нови рекорд“: процијењени 1RM серије већи од свих ранијих завршених серија те вјежбе */
+async function checkRecord(set) {
+  const now = e1rm(set.weightKg, set.reps);
+  if (!now) return;
+  const sets = (await repo.listSets({ clientId: set.clientId })).filter((x) => x.exerciseId === set.exerciseId && x.id !== set.id && x.done === 1);
+  if (!sets.length) return; // први пут — нема са чиме поредити
+  const best = Math.max(0, ...sets.map((x) => e1rm(x.weightKg, x.reps) || 0));
+  if (best > 0 && now > best + 0.01) toast(`🏆 Нови рекорд: ${ctx.exMap.get(set.exerciseId)?.name || ''} — процијењени 1RM ${fmtNum(now, 1)} kg (прије ${fmtNum(best, 1)} kg)`);
 }

@@ -1,11 +1,42 @@
 // Чланарина: уплате по клијенту, статус истека и преглед свих клијената.
 import { repo, save, confirmDlg, toast, openModal, closeModal, fullName, initials } from '../core.js';
 import { esc, fmtDate, fmtNum, parseNum, today, isValidDate, monthStart, addMonths, addDays } from '../../lib/util.js';
-import { PAY_METHODS, suggestPeriod, periodEnd, membershipStatus, statusLabel } from '../../domain/membership.js';
+import { PAY_METHODS, suggestPeriod, periodEnd, membershipStatus, statusLabel, packageStatus, monthlyIncome } from '../../domain/membership.js';
+import { barChart, dataTable, chartCard, bindChartToggles } from '../../charts/charts.js';
 
 export const statusOf = (payments, opts) => membershipStatus(payments, today(), opts.membershipWarnDays ?? 7);
 export const statusChip = (s) => { const l = statusLabel(s, fmtDate); return `<span class="chip ${l.cls}">${esc(l.text)}</span>`; };
 const money = (v) => (v === null || v === undefined ? '—' : fmtNum(v) + ' €');
+export const PKG_CHIP = (o) => o.state === 'used' ? '<span class="chip muted">искоришћен</span>' : o.state === 'low' ? `<span class="chip warn">остало ${o.remaining}</span>` : o.state === 'future' ? '<span class="chip muted">почиње касније</span>' : `<span class="chip ok">остало ${o.remaining}</span>`;
+
+/** Образац пакета тренинга */
+function packageForm(c, p0, onSaved) {
+  const p = p0 || { name: '', total: 12, startDate: today(), price: null, paidDate: today(), note: '' };
+  const m = openModal({
+    title: (p0 ? 'Измјена пакета' : 'Нови пакет тренинга') + ' · ' + fullName(c),
+    body: `<div class="fgrid">
+      <div class="field"><label for="k-total">Број тренинга *</label><input id="k-total" class="inp" inputmode="numeric" value="${p.total}"></div>
+      <div class="field"><span class="lbl">Брзи избор</span><div class="chips">${[4, 8, 10, 12, 16, 20].map((n) => `<button type="button" class="qchip" data-n="${n}">${n}</button>`).join('')}</div></div>
+      <div class="field"><label for="k-start">Почетак (одбијају се тренинзи од овог дана)</label><input id="k-start" class="inp" type="date" value="${esc(p.startDate)}"></div>
+      <div class="field"><label for="k-price">Цијена (€, необавезно)</label><input id="k-price" class="inp" inputmode="decimal" value="${p.price === null || p.price === undefined ? '' : fmtNum(p.price)}"></div>
+      <div class="field"><label for="k-paid">Датум уплате</label><input id="k-paid" class="inp" type="date" value="${esc(p.paidDate || '')}"></div>
+      <div class="field"><label for="k-name">Назив (необавезно)</label><input id="k-name" class="inp" value="${esc(p.name || '')}" placeholder="нпр. Персонални 12"></div>
+      <div class="field full"><label for="k-note">Напомена</label><input id="k-note" class="inp" value="${esc(p.note || '')}"></div>
+      <p class="err full" id="k-err"></p></div>`,
+    foot: '<button class="btn" data-close>Одустани</button><button class="btn primary" id="k-ok">Сачувај</button>',
+  });
+  m.querySelectorAll('[data-n]').forEach((b) => (b.onclick = () => { m.querySelector('#k-total').value = b.dataset.n; }));
+  m.querySelector('#k-ok').onclick = async () => {
+    const total = parseNum(m.querySelector('#k-total').value), price = parseNum(m.querySelector('#k-price').value);
+    if (!Number.isInteger(total) || Number.isNaN(price)) { m.querySelector('#k-err').textContent = 'Број тренинга мора бити цио број, а цијена број.'; return; }
+    const paid = m.querySelector('#k-paid').value;
+    if (paid && !isValidDate(paid)) { m.querySelector('#k-err').textContent = 'Неисправан датум уплате.'; return; }
+    const data = { clientId: c.id, total, price, startDate: m.querySelector('#k-start').value, paidDate: paid, name: m.querySelector('#k-name').value, note: m.querySelector('#k-note').value };
+    if (p0) data.id = p0.id;
+    try { await repo.savePackage(data); } catch (e) { m.querySelector('#k-err').textContent = e.message; return; }
+    closeModal(); toast('Пакет је сачуван.'); onSaved?.();
+  };
+}
 
 /** Картица „Чланарина“ на профилу клијента */
 export async function renderClientMembership(root, c) {
@@ -14,6 +45,8 @@ export async function renderClientMembership(root, c) {
   const l = statusLabel(s, fmtDate);
   const total = payments.reduce((a, p) => a + (p.amount || 0), 0);
   const re = () => renderClientMembership(root, c);
+  const [pkgs, sessions] = await Promise.all([repo.listPackages({ clientId: c.id }), repo.listSessions({ clientId: c.id })]);
+  const pst = packageStatus(pkgs, sessions, today()).reverse();
   root.innerHTML = `<div class="stack">
     <div class="banner ${l.cls === 'ok' ? 'info' : l.cls === 'muted' ? 'info' : l.cls}"><div style="flex:1">
       <div class="eyebrow">Чланарина</div><b style="font-size:20px">${esc(l.text)}</b>
@@ -29,7 +62,21 @@ export async function renderClientMembership(root, c) {
         <small>Уплаћено ${fmtDate(p.paidDate)} · ${money(p.amount)}${p.method ? ' · ' + esc(PAY_METHODS[p.method]) : ''}${p.note ? ' · ' + esc(p.note) : ''}</small></div>
         <div class="row"><button class="btn sm" data-edit="${p.id}">Измијени</button><button class="btn sm danger" data-del="${p.id}">Обриши</button></div></div>`).join('')}</div>`
       : '<p class="empty">Још нема уплата.</p>'}
+    </section>
+    <section class="card">
+      <div class="pad row between"><div><h3>Пакети тренинга</h3><p class="small muted">Сваки тренинг са статусом „Завршен“ аутоматски се одбија од пакета (редом, од најстаријег).</p></div><button class="btn primary" data-newpkg>+ Нови пакет</button></div>
+      <div class="list">${pst.length ? pst.map((o) => `<div class="litem" style="cursor:default;flex-wrap:wrap">
+        <div class="grow"><b>${esc(o.pkg.name || 'Пакет ' + o.pkg.total + ' тренинга')} ${PKG_CHIP(o)}</b>
+          <small>Од ${fmtDate(o.pkg.startDate)} · искоришћено ${o.used} од ${o.pkg.total}${o.lastDate ? ' · посљедњи ' + fmtDate(o.lastDate) : ''}${o.pkg.price !== null && o.pkg.price !== undefined ? ' · ' + money(o.pkg.price) : ''}${o.pkg.note ? ' · ' + esc(o.pkg.note) : ''}</small>
+          <div style="height:8px;border-radius:6px;background:var(--line);overflow:hidden;margin-top:6px;max-width:360px"><div style="height:100%;width:${Math.min(100, (o.used / o.pkg.total) * 100).toFixed(1)}%;background:var(--grad)"></div></div></div>
+        <div class="row"><button class="btn sm" data-epkg="${o.pkg.id}">Измијени</button><button class="btn sm danger" data-dpkg="${o.pkg.id}">Обриши</button></div></div>`).join('') : '<p class="empty">Нема пакета.</p>'}</div>
     </section></div>`;
+  root.querySelector('[data-newpkg]').onclick = () => packageForm(c, null, re);
+  root.querySelectorAll('[data-epkg]').forEach((b) => (b.onclick = () => packageForm(c, pkgs.find((p) => p.id === b.dataset.epkg), re)));
+  root.querySelectorAll('[data-dpkg]').forEach((b) => (b.onclick = async () => {
+    const p = pkgs.find((x) => x.id === b.dataset.dpkg);
+    if (await confirmDlg(`Обрисати пакет од ${p.total} тренинга (${fmtDate(p.startDate)})? Тренинзи остају, само се више не одбијају од овог пакета.`, { okText: 'Обриши', danger: true }) && (await save(() => repo.deletePackage(p.id))) !== null) { toast('Пакет је обрисан.'); re(); }
+  }));
   root.querySelector('[data-new]').onclick = () => paymentForm(c, null, re);
   root.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => paymentForm(c, payments.find((p) => p.id === b.dataset.edit), re)));
   root.querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => {
@@ -115,6 +162,10 @@ export async function allStatuses() {
 
 export async function render(main) {
   const { rows, payments, opts } = await allStatuses();
+  const allPkgs = await repo.listPackages();
+  const inc = monthlyIncome(payments, allPkgs, 12, today());
+  const MONTHS_SHORT = ['јан', 'феб', 'мар', 'апр', 'мај', 'јун', 'јул', 'авг', 'сеп', 'окт', 'нов', 'дец'];
+  const incLabel = (k) => MONTHS_SHORT[Number(k.slice(5)) - 1] + ' ' + k.slice(2, 4);
   const cnt = { expired: 0, expiring: 0, active: 0, none: 0, future: 0 };
   for (const r of rows) cnt[r.s.state]++;
   const m0 = monthStart(today()), m1 = addDays(addMonths(m0, 1), -1);
@@ -141,8 +192,10 @@ export async function render(main) {
           <div class="row">${statusChip(s)}<button class="btn sm primary" data-pay="${c.id}">+ Уплата</button></div></div>`).join('')
         : '<p class="empty">Нема клијената у овој групи.</p>'}</div>
     </section>
+    ${chartCard('inc', 'Приход по мјесецима (чланарине и пакети, €)', barChart(inc.map((p) => ({ label: incLabel(p.x), value: Math.round(p.y) }))), dataTable(['Мјесец', 'Приход (€)'], inc.map((p) => [incLabel(p.x), fmtNum(p.y)])), `<p class="small muted">Укупно за 12 мјесеци: <b>${fmtNum(inc.reduce((a, p) => a + p.y, 0))} €</b> · просјечно мјесечно ${fmtNum(inc.reduce((a, p) => a + p.y, 0) / 12, 0)} €. Пакети се рачунају по датуму уплате.</p>`)}
     <p class="small muted">Статус се рачуна на основу посљедњег плаћеног периода. Колико дана прије истека се приказује упозорење и подразумијевани износ подешавате у „Подаци и копије → Изборне вриједности“.</p>
   </div>`;
   main.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => { st.filter = b.dataset.f; render(main); }));
+  bindChartToggles(main);
   main.querySelectorAll('[data-pay]').forEach((b) => (b.onclick = () => paymentForm(rows.find((r) => r.c.id === b.dataset.pay).c, null, () => render(main))));
 }

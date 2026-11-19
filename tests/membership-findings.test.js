@@ -139,7 +139,7 @@ describe('чланарина и налази у бази, увоз/извоз', 
     await expect(A.repo.savePayment({ clientId: c.id, paidDate: '2026-11-01', periodFrom: '2026-11-10', periodTo: '2026-11-01' })).rejects.toThrow(/прије почетка/);
 
     const file = roundtrip(await exportBackup(A.db));
-    expect(file.formatVersion).toBe(2);
+    expect(file.formatVersion).toBe(3);
     expect(file.counts).toMatchObject({ payments: 1, findings: 1, attachments: 1 });
     const v = validateBackup(file);
     expect(v.ok).toBe(true);
@@ -173,7 +173,7 @@ describe('чланарина и налази у бази, увоз/извоз', 
     const t = new Date().toISOString();
     const v = validateBackup({ format: FORMAT, formatVersion: 1, data: { clients: [{ id: 'c', updatedAt: t, deleted: 0, firstName: 'А', lastName: 'Б' }] } });
     expect(v.ok).toBe(true);
-    expect(v.backup.formatVersion).toBe(2);
+    expect(v.backup.formatVersion).toBe(3);
     expect(v.backup.data.findings).toEqual([]);
     expect(v.warnings.join(' ')).not.toMatch(/Уплате|Налази/);
   });
@@ -197,7 +197,7 @@ describe('чланарина и налази у бази, увоз/извоз', 
     const db = createDb(name);
     const repo = createRepo(db);
     await repo.init();
-    expect(db.verno).toBe(4);
+    expect(db.verno).toBe(5);
     expect((await repo.getClient('c1')).firstName).toBe('Стара');
     expect((await repo.getSession('s1')).mood).toBe(5);
     expect(await repo.listPayments({ clientId: 'c1' })).toEqual([]);

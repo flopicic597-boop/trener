@@ -4,7 +4,8 @@
 import { uid, nowIso, today, sortBy } from '../lib/util.js';
 import { BUILTIN_EXERCISES } from './exercises-seed.js';
 import { DEFAULT_OPTIONS, validateClient, validateSession, validateSet, validateExercise, normalizeTempo } from '../domain/rules.js';
-import { validatePayment } from '../domain/membership.js';
+import { validatePayment, validatePackage } from '../domain/membership.js';
+import { validateGoal } from '../domain/goals.js';
 import { validateFinding } from '../domain/findings.js';
 
 /** Највећа величина једне приложене датотеке налаза */
@@ -65,7 +66,7 @@ export function createRepo(db) {
     async saveClient(data) {
       const isNew = !data.id;
       const base = isNew
-        ? { id: uid(), firstName: '', lastName: '', startDate: today(), goal: '', note: '', phone: '', email: '', archived: 0 }
+        ? { id: uid(), firstName: '', lastName: '', startDate: today(), goal: '', note: '', phone: '', email: '', archived: 0, sex: '', birthDate: '', heightCm: null, activity: null, consentDate: '', consentPhotos: 0, health: null, injuries: [] }
         : (await db.clients.get(data.id)) || {};
       const c = { ...base, ...data, id: base.id || data.id };
       c.firstName = (c.firstName || '').trim(); c.lastName = (c.lastName || '').trim();
@@ -361,7 +362,7 @@ export function createRepo(db) {
       const isNew = !data.id;
       const base = isNew ? { id: uid(), clientId: null, date: today(), kind: 'body', title: '', values: [], text: '', note: '' } : (await db.findings.get(data.id)) || {};
       const f = { ...base, ...data, id: base.id || data.id };
-      f.values = (f.values || []).map((v) => ({ id: v.id || uid(), paramId: v.paramId || null, name: (v.name || '').trim(), unit: (v.unit || '').trim(), value: v.value ?? null, refMin: v.refMin ?? null, refMax: v.refMax ?? null }));
+      f.values = (f.values || []).map((v) => ({ id: v.id || uid(), paramId: v.paramId || null, name: (v.name || '').trim(), unit: (v.unit || '').trim(), value: v.value ?? null, refMin: v.refMin ?? null, refMax: v.refMax ?? null, ...(v.computed ? { computed: 1 } : {}), ...(v.method ? { method: v.method } : {}) }));
       check(validateFinding(f));
       return put('findings', JSON.parse(JSON.stringify(f)), isNew);
     },
@@ -379,27 +380,57 @@ export function createRepo(db) {
     },
     async getAttachment(id) { const a = await db.attachments.get(id); return live(a) ? a : null; },
     /** dataUrl: садржај датотеке као data: URL (чува се у бази и у резервној копији) */
-    async addAttachment({ findingId, name, mime, size, dataUrl }) {
+    async addAttachment({ findingId, name, mime, size, dataUrl, note = '' }) {
       const f = await repo.getFinding(findingId);
       if (!f) throw new Error('Налаз не постоји.');
       if (!size || size > MAX_ATTACHMENT_BYTES) throw new ValidationError({ size: `Датотека је превелика (највише ${MAX_ATTACHMENT_BYTES / 1048576} MB).` });
       if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) throw new ValidationError({ data: 'Датотеку није могуће прочитати.' });
-      return put('attachments', { id: uid(), findingId, clientId: f.clientId, name: name || 'nalaz', mime: mime || 'application/octet-stream', size, data: dataUrl, note: '' }, true);
+      return put('attachments', { id: uid(), findingId, clientId: f.clientId, name: name || 'nalaz', mime: mime || 'application/octet-stream', size, data: dataUrl, note }, true);
     },
     async deleteAttachment(id) {
       const a = await db.attachments.get(id);
       return put('attachments', { ...a, deleted: 1, data: '' });
     },
 
+    /* ---------------- пакети тренинга ---------------- */
+    async listPackages({ clientId } = {}) {
+      const all = (clientId ? await db.packages.where('clientId').equals(clientId).toArray() : await db.packages.toArray()).filter(live);
+      return all.sort((a, b) => (b.startDate + b.createdAt).localeCompare(a.startDate + a.createdAt));
+    },
+    async savePackage(data) {
+      const isNew = !data.id;
+      const base = isNew ? { id: uid(), clientId: null, name: '', total: 12, startDate: today(), price: null, paidDate: '', note: '' } : (await db.packages.get(data.id)) || {};
+      const p = { ...base, ...data, id: base.id || data.id };
+      p.name = (p.name || '').trim(); p.note = (p.note || '').trim();
+      check(validatePackage(p));
+      return put('packages', p, isNew);
+    },
+    async deletePackage(id) { return patch('packages', id, { deleted: 1 }); },
+
+    /* ---------------- циљеви ---------------- */
+    async listGoals({ clientId } = {}) {
+      const all = (clientId ? await db.goals.where('clientId').equals(clientId).toArray() : await db.goals.toArray()).filter(live);
+      return all.sort((a, b) => (a.done - b.done) || (a.deadline || '9999').localeCompare(b.deadline || '9999'));
+    },
+    async saveGoal(data) {
+      const isNew = !data.id;
+      const base = isNew ? { id: uid(), clientId: null, title: '', kind: 'param', paramId: null, exerciseId: null, startValue: null, target: null, manualValue: null, unit: '', startDate: today(), deadline: '', done: 0, note: '' } : (await db.goals.get(data.id)) || {};
+      const g = { ...base, ...data, id: base.id || data.id };
+      g.title = (g.title || '').trim();
+      check(validateGoal(g));
+      return put('goals', g, isNew);
+    },
+    async deleteGoal(id) { return patch('goals', id, { deleted: 1 }); },
+
     /* ---------------- пробни подаци ---------------- */
     async countDemo() {
       let n = 0;
-      for (const t of ['clients', 'programs', 'sessions', 'payments', 'findings']) n += (await db.table(t).toArray()).filter((r) => r.demo && !r.deleted).length;
+      for (const t of ['clients', 'programs', 'sessions', 'payments', 'findings', 'packages', 'goals']) n += (await db.table(t).toArray()).filter((r) => r.demo && !r.deleted).length;
       return n;
     },
     /** Трајно уклања САМО записе означене као пробни (demo: 1) */
     async removeDemo() {
-      const tables = ['clients', 'programs', 'sessions', 'sessionExercises', 'sets', 'payments', 'findings', 'attachments'];
+      const tables = ['clients', 'programs', 'sessions', 'sessionExercises', 'sets', 'payments', 'findings', 'attachments', 'packages', 'goals'];
       await db.transaction('rw', tables.map((t) => db.table(t)), async () => {
         for (const t of tables) {
           const ids = (await db.table(t).toArray()).filter((r) => r.demo).map((r) => r.id);

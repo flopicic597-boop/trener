@@ -1,6 +1,7 @@
 // Пробни подаци. Сви записи имају demo: 1 и уклањају се једним дугметом,
 // без утицаја на стварне клијенте. Имена су из узора.
 import { uid, today, addDays, parseDate } from '../lib/util.js';
+import { caliperResult, ageAt } from '../domain/assessment.js';
 
 function rng(seed) {
   return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -19,10 +20,18 @@ const CLIENTS = [
   { firstName: 'Стефан', lastName: 'Јовановић', goal: 'Рехабилитација', note: 'Пробни клијент. Избјегавати аксијално оптерећење.', plan: [1, 4], tpl: ['celo', 'gornji'], f: 0.8 },
 ];
 
+/** Израчунате вриједности пробног калипера (иста формула као у апликацији) */
+function caliperValues(date) {
+  const r = caliperResult({ protocol: 'jp3', sex: 'm', age: ageAt('1988-04-12', date), sitesMm: { chest: 14.5, abdomen: 27.5, thigh: 19 }, weightKg: 87.8 });
+  const v = (paramId, name, unit, value) => ({ id: uid(), paramId, name, unit, value: Math.round(value * 1000) / 1000, refMin: null, refMax: null, computed: 1, ...(paramId === 'tezina' ? {} : { method: 'caliper' }) });
+  return [v('sf_chest', 'Набор: груди', 'mm', 14.5), v('sf_abdomen', 'Набор: стомак', 'mm', 27.5), v('sf_thigh', 'Набор: бутина', 'mm', 19), v('sumaNabora', 'Збир кожних набора', 'mm', r.sum),
+    v('mast', 'Тјелесна маст', '%', r.fatPct), v('masaMasti', 'Маса масти', 'kg', r.fatKg), v('lbm', 'Немасна маса (LBM)', 'kg', r.leanKg), v('tezina', 'Тјелесна маса', 'kg', 87.8)];
+}
+
 export function buildDemo(now = today()) {
   const t = new Date().toISOString();
   const base = { createdAt: t, updatedAt: t, deleted: 0, demo: 1 };
-  const out = { clients: [], programs: [], sessions: [], sessionExercises: [], sets: [], payments: [], findings: [] };
+  const out = { clients: [], programs: [], sessions: [], sessionExercises: [], sets: [], payments: [], findings: [], packages: [], goals: [] };
   const progIds = {};
   for (const [k, tpl] of Object.entries(TPL)) {
     const id = uid(); progIds[k] = id;
@@ -40,7 +49,15 @@ export function buildDemo(now = today()) {
     const R = rng(ci * 977 + 13);
     const cid = uid();
     const start = addDays(now, -56);
-    out.clients.push({ ...base, id: cid, firstName: c.firstName, lastName: c.lastName, startDate: start, goal: c.goal, note: c.note, phone: '', email: '', archived: 0 });
+    const PROF = [{ sex: 'm', birthDate: '1988-04-12', heightCm: 182, activity: 1.375 }, { sex: 'f', birthDate: '1995-09-03', heightCm: 168, activity: 1.55 }, { sex: 'm', birthDate: '1979-01-25', heightCm: 176, activity: 1.375 }][ci];
+    out.clients.push({ ...base, id: cid, firstName: c.firstName, lastName: c.lastName, startDate: start, goal: c.goal, note: c.note, phone: '', email: '', archived: 0, ...PROF,
+      consentDate: start, consentPhotos: 1,
+      health: { q: { heart: 0, chest: 0, dizzy: 0, chronic: 0, meds: 0, joints: ci === 2 ? 1 : 0, supervised: 0, pregnant: 0 }, meds: '', conditions: '', surgeries: ci === 2 ? 'Артроскопија десног кољена (2024.)' : '', note: '', filledDate: start, doctorOkDate: ci === 2 ? addDays(start, 2) : '' },
+      injuries: ci === 2 ? [{ id: uid(), area: 'Десно кољено', note: 'без скокова и дубоког чучња', since: start, active: 1, avoidCats: [], avoidEx: [] }] : [] });
+    out.packages.push({ ...base, id: uid(), clientId: cid, name: 'Персонални 12', total: 12, startDate: addDays(start, 28), price: 180, paidDate: addDays(start, 28), note: '' });
+    if (ci === 0) out.goals.push({ ...base, id: uid(), clientId: cid, title: 'Смањити тјелесну масу на 85 kg', kind: 'param', paramId: 'tezina', exerciseId: null, startValue: 92, target: 85, manualValue: null, unit: '', startDate: start, deadline: addDays(start, 120), done: 0, note: '' });
+    if (ci === 0) out.findings.push({ ...base, id: uid(), clientId: cid, date: addDays(start, 49), kind: 'caliper', title: 'Калипер JP3', text: '', note: '',
+      caliper: { protocol: 'jp3', sites: { chest: [14, 15, null], abdomen: [28, 27, null], thigh: [19, 19, null] }, weightKg: 87.8 }, values: caliperValues(addDays(start, 49)) });
     // чланарина: мјесечне уплате од почетка; трећи клијент није продужио (истекла), други истиче ускоро
     const months = ci === 2 ? 1 : 2;
     for (let mI = 0; mI < months; mI++) {
@@ -75,6 +92,7 @@ export function buildDemo(now = today()) {
         mood: future || isToday || skipped ? null : (R() > 0.12 ? 2 + Math.floor(R() * 4) : null),
         sleep: future || isToday || skipped ? null : (R() > 0.15 ? Math.round((6 + R() * 2.5) * 2) / 2 : null),
         note: skipped ? 'Отказао због обавеза.' : '',
+        ...(future || isToday || skipped ? {} : { rpe: 5 + Math.floor(R() * 4), durationMin: [45, 60, 60, 75][Math.floor(R() * 4)], soreness: 2 + Math.floor(R() * 4), energy: 2 + Math.floor(R() * 4), stress: 2 + Math.floor(R() * 4) }),
       });
       tpl.items.forEach(([exerciseId, nSets, reps, kg], pos) => {
         const seid = uid();
@@ -101,7 +119,7 @@ export function buildDemo(now = today()) {
 
 export async function loadDemo(db) {
   const d = buildDemo();
-  await db.transaction('rw', ['clients', 'programs', 'sessions', 'sessionExercises', 'sets', 'payments', 'findings'].map((t) => db.table(t)), async () => {
+  await db.transaction('rw', ['clients', 'programs', 'sessions', 'sessionExercises', 'sets', 'payments', 'findings', 'packages', 'goals'].map((t) => db.table(t)), async () => {
     for (const [t, rows] of Object.entries(d)) await db.table(t).bulkAdd(rows);
   });
   return d;

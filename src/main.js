@@ -19,6 +19,8 @@ import * as library from './ui/views/library.js';
 import * as data from './ui/views/data.js';
 import * as membership from './ui/views/membership.js';
 import * as findings from './ui/views/findings.js';
+import * as schedule from './ui/views/schedule.js';
+import * as report from './ui/views/report.js';
 import { esc } from './lib/util.js';
 import * as cloud from './sync/auto.js';
 
@@ -28,7 +30,8 @@ export const LOGO = '<svg width="34" height="34" viewBox="0 0 48 48" aria-hidden
 const NAV = [
   ['klijenti', 'Клијенти', ICONS.users],
   ['clanarine', 'Чланарине', ICONS.card],
-  ['pregled', 'Преглед по данима', ICONS.cal],
+  ['raspored', 'Распоред', ICONS.cal],
+  ['pregled', 'Преглед по данима', ICONS.list],
   ['napredak', 'Напредак', ICONS.chart],
   ['programi', 'Програми', ICONS.list],
   ['biblioteka', 'Библиотека вјежби', ICONS.dumbbell],
@@ -46,6 +49,8 @@ const ROUTES = {
   podaci: [data.render, 'podaci'],
   clanarine: [membership.render, 'clanarine'],
   nalaz: [findings.renderEditor, 'klijenti'],
+  raspored: [schedule.render, 'raspored'],
+  izvjestaj: [report.render, 'klijenti'],
 };
 
 function shell() {

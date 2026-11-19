@@ -67,6 +67,11 @@ export function validateClient(c) {
   if (!c.lastName || !c.lastName.trim()) e.lastName = 'Унесите презиме.';
   if (c.startDate && !isValidDate(c.startDate)) e.startDate = 'Неисправан датум.';
   if (c.email && !/^\S+@\S+\.\S+$/.test(c.email)) e.email = 'Неисправна е-пошта.';
+  if (c.sex && !['m', 'f'].includes(c.sex)) e.sex = 'Непознат пол.';
+  if (c.birthDate && (!isValidDate(c.birthDate) || c.birthDate > new Date().toISOString().slice(0, 10))) e.birthDate = 'Неисправан датум рођења.';
+  if (c.heightCm !== null && c.heightCm !== undefined && !(typeof c.heightCm === 'number' && c.heightCm >= 50 && c.heightCm <= 250)) e.heightCm = 'Висина: број од 50 до 250 cm.';
+  if (c.activity !== null && c.activity !== undefined && !(typeof c.activity === 'number' && c.activity >= 1.1 && c.activity <= 2.5)) e.activity = 'Неисправан ниво активности.';
+  if (c.injuries !== undefined && !Array.isArray(c.injuries)) e.injuries = 'Неисправан списак повреда.';
   return e;
 }
 
@@ -78,6 +83,18 @@ export function validateSession(s) {
   if (!STATUS[s.status]) e.status = 'Непознат статус.';
   const m = validateMood(s.mood); if (m) e.mood = m;
   const sl = validateSleep(s.sleep); if (sl) e.sleep = sl;
+  Object.assign(e, validateSessionExtra(s));
+  return e;
+}
+
+/** Опоравак (1–5), напор RPE (1–10) и трајање тренинга (мин.) — сви необавезни */
+export function validateSessionExtra(s) {
+  const e = {};
+  for (const [k, l] of [['soreness', 'Бол у мишићима'], ['energy', 'Енергија'], ['stress', 'Стрес']]) {
+    const v = s[k]; if (v !== null && v !== undefined && !(Number.isInteger(v) && v >= 1 && v <= 5)) e[k] = `${l}: цио број од 1 до 5.`;
+  }
+  if (s.rpe !== null && s.rpe !== undefined && !(typeof s.rpe === 'number' && s.rpe >= 1 && s.rpe <= 10)) e.rpe = 'Напор (RPE): број од 1 до 10.';
+  if (s.durationMin !== null && s.durationMin !== undefined && !(typeof s.durationMin === 'number' && s.durationMin > 0 && s.durationMin <= 600)) e.durationMin = 'Трајање: број минута од 1 до 600.';
   return e;
 }
 

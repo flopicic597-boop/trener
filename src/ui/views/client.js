@@ -7,6 +7,8 @@ import { scheduleDialog } from '../dialogs.js';
 import { renderClientProgress } from './progress.js';
 import { renderClientMembership, statusOf, statusChip } from './membership.js';
 import { renderClientFindings } from './findings.js';
+import { renderClientHealth, healthState, activeInjuries } from './health.js';
+import { renderClientPlan } from './plan.js';
 
 const st = { day: today(), month: monthStart(today()), cid: null };
 
@@ -14,7 +16,8 @@ export async function render(main, [id, tab = 'trening']) {
   const c = await repo.getClient(id);
   if (!c) { main.innerHTML = '<div class="wrap"><p class="empty card">Клијент није пронађен.</p></div>'; return; }
   if (st.cid !== id) { st.cid = id; st.day = today(); st.month = monthStart(today()); }
-  const TABS = [['trening', 'Календар и унос'], ['istorija', 'Историја'], ['programi', 'Програми'], ['napredak', 'Напредак'], ['clanarina', 'Чланарина'], ['nalazi', 'Налази']];
+  const TABS = [['trening', 'Календар и унос'], ['istorija', 'Историја'], ['programi', 'Програми'], ['napredak', 'Напредак'], ['nalazi', 'Мјерења и налази'], ['zdravlje', 'Здравље'], ['plan', 'Циљеви и исхрана'], ['clanarina', 'Чланарина и пакети']];
+  const hs = healthState(c), injN = activeInjuries(c).length;
   const [pays, opts] = await Promise.all([repo.listPayments({ clientId: id }), repo.getOptions()]);
   const ms = statusOf(pays, opts);
   main.innerHTML = `<div class="wrap">
@@ -22,9 +25,9 @@ export async function render(main, [id, tab = 'trening']) {
     <div class="card pad"><div class="row" style="gap:16px">
       <div class="ava big">${esc(initials(c))}</div>
       <div style="flex:1 1 260px;min-width:0"><h1>${esc(fullName(c))}</h1>
-        <div class="row small muted">${c.archived ? '<span class="chip warn">Архивиран</span>' : ''}<a href="#/klijent/${id}/clanarina" style="text-decoration:none" title="Чланарина">${statusChip(ms)}</a><span>Циљ: <b style="color:var(--fg)">${esc(c.goal || '—')}</b></span><span>Почетак: ${fmtDate(c.startDate)}</span>${c.phone ? `<span>Тел: ${esc(c.phone)}</span>` : ''}${c.email ? `<span>${esc(c.email)}</span>` : ''}</div>
+        <div class="row small muted">${c.archived ? '<span class="chip warn">Архивиран</span>' : ''}<a href="#/klijent/${id}/clanarina" style="text-decoration:none" title="Чланарина">${statusChip(ms)}</a>${hs.flagged && !hs.cleared ? `<a href="#/klijent/${id}/zdravlje" class="chip bad" style="text-decoration:none">⚠ сагласност љекара</a>` : !hs.filled ? `<a href="#/klijent/${id}/zdravlje" class="chip warn" style="text-decoration:none">упитник о здрављу</a>` : ''}${injN ? `<a href="#/klijent/${id}/zdravlje" class="chip bad" style="text-decoration:none">повреде: ${injN}</a>` : ''}<span>Циљ: <b style="color:var(--fg)">${esc(c.goal || '—')}</b></span><span>Почетак: ${fmtDate(c.startDate)}</span>${c.phone ? `<span>Тел: ${esc(c.phone)}</span>` : ''}${c.email ? `<span>${esc(c.email)}</span>` : ''}</div>
         ${c.note ? `<p class="small" style="margin-top:6px">${esc(c.note)}</p>` : ''}</div>
-      <div class="row"><button class="btn" data-act="edit">Измијени</button>
+      <div class="row"><a class="btn" href="#/izvjestaj/${id}">Извјештај (PDF)</a><button class="btn" data-act="edit">Измијени</button>
         <button class="btn ${c.archived ? '' : 'danger'}" data-act="arch">${c.archived ? 'Врати из архиве' : 'Архивирај'}</button></div>
     </div></div>
     <nav class="tabs">${TABS.map(([k, v]) => `<a href="#/klijent/${id}/${k}" class="${k === tab ? 'on' : ''}">${v}</a>`).join('')}</nav>
@@ -40,6 +43,8 @@ export async function render(main, [id, tab = 'trening']) {
   if (tab === 'napredak') return renderClientProgress(root, c.id);
   if (tab === 'clanarina') return renderClientMembership(root, c);
   if (tab === 'nalazi') return renderClientFindings(root, c);
+  if (tab === 'zdravlje') return renderClientHealth(root, c);
+  if (tab === 'plan') return renderClientPlan(root, c);
   return calendar(root, c);
 }
 

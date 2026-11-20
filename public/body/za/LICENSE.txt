@@ -1,0 +1,10 @@
+Datoteke muscles.glb, bones.glb i fascia.glb u ovoj fascikli su izvedene iz modela Z-Anatomy
+(https://www.z-anatomy.com, https://github.com/LluisV/Z-Anatomy), licenca CC BY-SA 4.0
+(https://creativecommons.org/licenses/by-sa/4.0/).
+
+Z-Anatomy je zasnovan na BodyParts3D, (c) The Database Center for Life Science,
+licenca CC BY-SA 2.1 Japan (https://creativecommons.org/licenses/by-sa/2.1/jp/deed.en).
+
+Izmjene: izabrani misici, kosti i fascije (bez organa, ociju, larinksa i sitnih misica lica),
+smanjen broj trouglova (Blender Decimate), uklonjeni materijali, Draco kompresija.
+Izvedene datoteke se dijele pod istom licencom CC BY-SA 4.0.

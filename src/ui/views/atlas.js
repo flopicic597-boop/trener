@@ -8,12 +8,16 @@ import { TYPE_SHORT } from '../../data/exercises-seed.js';
 import { MUSCLE, MUSCLE_FIELDS, musclesForZone, searchMuscles } from '../../data/muscles.js';
 
 const st = { sex: 'm', layer: 'muscle', sel: null, cid: null };
+const CREDIT = '<p class="small muted" style="margin:4px 2px">3Д модел мушкарца: <a href="https://www.z-anatomy.com" target="_blank" rel="noopener">Z-Anatomy</a> (CC BY-SA 4.0), заснован на BodyParts3D © The Database Center for Life Science (CC BY-SA 2.1 JP); смањен и компресован за ову апликацију. Женски модел: MakeHuman (CC0).</p>';
 
 /** Учитава 3Д приказ (three.js се учитава тек овдје); без WebGL-а враћа null */
 async function mountViewer(box, opts) {
+  box.innerHTML = '<p class="small muted v3d-load">Учитавам 3Д анатомски модел…</p>';
   try {
     const { createBodyViewer } = await import('../../body/viewer.js');
-    return await createBodyViewer(box, opts);
+    const v = await createBodyViewer(box, opts);
+    box.querySelector('.v3d-load')?.remove();
+    return v;
   } catch (e) {
     console.error(e);
     box.innerHTML = '<p class="empty">3Д приказ није доступан на овом уређају (WebGL). Зоне можете бирати са списка испод.</p>';
@@ -42,6 +46,16 @@ export function muscleDetailHtml(m, open = false) {
 function musclesHtml(zoneId) {
   const list = musclesForZone(zoneId);
   return list.length ? `<div><div class="lbl">Мишићи у овој зони (${list.length})</div><div class="stack" style="gap:6px;margin-top:6px">${list.map((m) => muscleDetailHtml(m)).join('')}</div></div>` : '';
+}
+
+const SIDE = { L: 'лијева страна', R: 'десна страна', C: '' };
+/** Изабрани дио детаљног модела: опис мишића (ако постоји) + анатомски назив */
+export function partHtml(sel) {
+  if (!sel?.label) return '';
+  const m = sel.muscleId && MUSCLE[sel.muscleId];
+  const kind = { muscle: 'Мишић', skeleton: 'Кост', fascia: 'Фасција / везивно ткиво' }[sel.layer] || 'Дио';
+  return `<div class="stack" style="gap:6px;margin-bottom:12px"><div class="small muted">${kind} на моделу: <i>${esc(sel.label)}</i>${SIDE[sel.side] ? ' · ' + SIDE[sel.side] : ''}</div>
+    ${m ? muscleDetailHtml(m, true) : ''}${!sel.zone ? '<p class="small muted">Овај дио није везан за зону атласа (нпр. кости лобање, фасције руке).</p>' : ''}</div>`;
 }
 
 /** Опис зоне са вјежбама */
@@ -83,9 +97,10 @@ export async function render(main) {
     </div>
     <section class="card pad stack"><div class="field"><label for="msearch">Претрага мишића (српски или латински назив, функција)</label><input id="msearch" class="inp" type="search" placeholder="нпр. supraspinatus, примицач, ротација" autocomplete="off"></div><div id="mres" class="stack" style="gap:6px"></div></section>
     ${zoneListHtml()}
+    ${CREDIT}
   </div>`;
   const info = main.querySelector('#info');
-  const show = (sel) => { st.sel = sel; info.innerHTML = sel ? zoneInfoHtml(sel.zone, sel.side, exMap) : `<h3>Занимљивости из науке</h3><ul class="find">${SCIENCE.map((t) => `<li>${esc(t)}</li>`).join('')}</ul><p class="small muted">Додирните зону на моделу за опис, честе проблеме, превенцију и вјежбе. Слојеви: мишићи, скелет и зглобови, мишићно-фасцијални ланци.</p>`; };
+  const show = (sel) => { st.sel = sel; info.innerHTML = sel ? partHtml(sel) + zoneInfoHtml(sel.zone, sel.side, exMap) : `<h3>Занимљивости из науке</h3><ul class="find">${SCIENCE.map((t) => `<li>${esc(t)}</li>`).join('')}</ul><p class="small muted">Додирните зону на моделу за опис, честе проблеме, превенцију и вјежбе. Слојеви: мишићи, скелет и зглобови, мишићно-фасцијални ланци.</p>`; };
   show(null);
   const viewer = await mountViewer(main.querySelector('#v3d'), { sex: st.sex, layer: st.layer, onPick: show });
   bindControls(main, viewer, show);
@@ -128,6 +143,7 @@ export async function renderClientBody(root, c0) {
         <section class="card pad stack" id="markslist"></section></div>
     </div>
     ${zoneListHtml()}
+    ${CREDIT}
   </div>`;
   const info = root.querySelector('#info'), list = root.querySelector('#markslist');
   const persist = async (next, msg) => { const ok = await save(() => repo.saveClient({ id: c.id, bodyMarks: next })); if (ok) { marks = next; viewer?.setMarks(active()); drawList(); if (msg) toast(msg); } return ok; };
@@ -135,8 +151,9 @@ export async function renderClientBody(root, c0) {
   function drawInfo(sel) {
     st.sel = sel;
     if (!sel) { info.innerHTML = `<h3>${esc(fullName(c))} — карта тијела</h3><p class="small muted">Додирните зону на моделу. Обиљежене зоне се памте у профилу клијента и користе за прављење тренинга превенције.</p><div class="chips">${Object.entries(MARK_TYPES).map(([, t]) => `<span class="chip" style="color:${t.color}">● ${t.label}</span>`).join('')}</div>`; return; }
+    if (!sel.zone) { info.innerHTML = partHtml(sel); return; }
     const cur = active().find((m) => m.zone === sel.zone && (m.side || 'C') === sel.side);
-    info.innerHTML = `<div class="stack">
+    info.innerHTML = `<div class="stack">${partHtml(sel)}
       <div class="card pad stack" style="background:var(--surface-2)">
         <div class="lbl">Ознака за: ${esc(zoneLabel(sel.zone, sel.side))}</div>
         <div class="chips">${Object.entries(MARK_TYPES).map(([k, t]) => `<button class="qchip ${cur?.type === k ? 'on' : ''}" data-mt="${k}" style="${cur?.type === k ? '' : `color:${t.color}`}">${t.label}</button>`).join('')}</div>

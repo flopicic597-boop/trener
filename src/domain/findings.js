@@ -33,7 +33,7 @@ export const PARAMS = [
   { id: 'whtr', name: 'Однос струк/висина (WHtR)', unit: '', kind: 'body', dir: 'down', refMax: 0.5, aliases: ['whtr', 'однос струк висина'],
     adviceHigh: 'Струк већи од половине висине: повећан кардиометаболички ризик — смањење масти око стомака је приоритет.' },
   { id: 'sumaNabora', name: 'Збир кожних набора', unit: 'mm', kind: 'body', dir: 'down', aliases: ['збир набора', 'сума набора'] },
-  ...['chest:Набор: груди', 'midaxillary:Набор: средња пазушна', 'triceps:Набор: трицепс', 'biceps:Набор: бицепс', 'subscapular:Набор: испод лопатице', 'abdomen:Набор: стомак', 'suprailiac:Набор: изнад кука', 'thigh:Набор: бутина']
+  ...['chest:Набор: груди', 'midaxillary:Набор: средња пазушна', 'triceps:Набор: трицепс', 'biceps:Набор: бицепс', 'subscapular:Набор: испод лопатице', 'abdomen:Набор: стомак', 'suprailiac:Набор: изнад кука', 'thigh:Набор: бутина', 'calf:Набор: потколеница (унутрашња страна)']
     .map((x) => { const k = x.slice(0, x.indexOf(':')), n = x.slice(x.indexOf(':') + 1); return { id: 'sf_' + k, name: n, unit: 'mm', kind: 'body', dir: 'down', aliases: [] }; }),
   { id: 'visceralna', name: 'Висцерална маст', unit: 'ниво', kind: 'body', dir: 'down', refMax: 9, aliases: ['висцерална маст', 'висцерална масноца', 'visceral fat', 'виф'],
     adviceHigh: 'Висцерална маст повишена: редован аеробни рад умјереног интензитета уз тренинг снаге; исхрана.' },
@@ -44,6 +44,10 @@ export const PARAMS = [
   { id: 'grudi', name: 'Обим груди', unit: 'cm', kind: 'body', dir: 'none', aliases: ['обим груди', 'груди', 'chest'] },
   { id: 'nadlaktica', name: 'Обим надлактице', unit: 'cm', kind: 'body', dir: 'none', aliases: ['обим надлактице', 'надлактица', 'arm'] },
   { id: 'butina', name: 'Обим бутине', unit: 'cm', kind: 'body', dir: 'none', aliases: ['обим бутине', 'бутина', 'thigh'] },
+  { id: 'potkoljenica', name: 'Обим потколенице', unit: 'cm', kind: 'body', dir: 'none', aliases: ['обим потколенице', 'обим листа', 'calf'] },
+  { id: 'vrat', name: 'Обим врата', unit: 'cm', kind: 'body', dir: 'none', aliases: ['обим врата', 'neck'] },
+  { id: 'misiciPct', name: 'Мишићна маса (% тјелесне масе)', unit: '%', kind: 'body', dir: 'up', aliases: ['проценат мисица', 'мисици %'] },
+  { id: 'ffmi', name: 'Индекс немасне масе (FFMI)', unit: 'kg/m²', kind: 'body', dir: 'up', aliases: ['ffmi'] },
   { id: 'pritisakS', name: 'Крвни притисак – систолни', unit: 'mmHg', kind: 'body', dir: 'range', refMin: 90, refMax: 129, med: true, aliases: ['систолни', 'систолицки', 'горњи притисак', 'systolic'],
     adviceHigh: 'Притисак повишен: избјегавати задржавање даха (Валсалва) и максимална оптерећења док љекар не процијени; предност умјереном аеробном раду; мјерити притисак прије тренинга.' },
   { id: 'pritisakD', name: 'Крвни притисак – дијастолни', unit: 'mmHg', kind: 'body', dir: 'range', refMin: 60, refMax: 84, med: true, aliases: ['дијастолни', 'дијастолицки', 'доњи притисак', 'diastolic'],
@@ -107,7 +111,7 @@ export const PARAM = Object.fromEntries(PARAMS.map((p) => [p.id, p]));
 
 /** Кључ параметра за поређење кроз различите налазе */
 // Вриједност измјерена посебном методом (нпр. % масти калипером) пореди се само са истом методом.
-export const METHOD_LABEL = { caliper: 'калипер' };
+export const METHOD_LABEL = { caliper: 'калипер', navy: 'обими', rfm: 'RFM', bmi: 'из BMI', 'lee-girth': 'Lee, обими', 'lee-simple': 'Lee, процјена' };
 export const paramKey = (v) => (v.paramId && PARAM[v.paramId] ? v.paramId + (v.method ? '@' + v.method : '') : 'custom:' + normSearch(v.name || '').trim());
 export const paramName = (v) => (v.paramId && PARAM[v.paramId] ? PARAM[v.paramId].name + (v.method ? ` (${METHOD_LABEL[v.method] || v.method})` : '') : v.name || '?');
 

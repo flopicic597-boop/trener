@@ -6,6 +6,10 @@ import { ageAt, nutritionTargets, karvonen, ACTIVITY, personalRecords } from '..
 import { GOAL_KINDS, goalProgress } from '../../domain/goals.js';
 import { pickExercise } from '../dialogs.js';
 import { clientForm } from './clients.js';
+import { DIET_PLANS, DIET_PLAN, DIET_CATS } from '../../data/nutrition-plans.js';
+import { SUPPLEMENTS, SUPPLEMENT, EVIDENCE } from '../../data/supplements.js';
+import { planTargets } from '../../domain/nutrition.js';
+import { menuHtml, planInfoHtml, handHtml } from './nutrition.js';
 
 /** Тренутне вриједности клијента: посљедња мјерења по параметру и рекорди по вјежби */
 export async function clientCurrent(c) {
@@ -30,6 +34,32 @@ export async function renderClientPlan(root, c0) {
   const kv = karvonen(age, rest?.value);
   const missing = [!c.sex && 'пол', age === null && 'датум рођења', !c.heightCm && 'висина', !w && 'тјелесна маса (мјерење)'].filter(Boolean);
   const re = () => renderClientPlan(root, c0);
+  const plan = DIET_PLAN[c.dietPlanId] || null;
+  const supps = (c.supplements || []).filter((id) => SUPPLEMENT[id]);
+  const dietTargets = () => {
+    if (!plan || !nt) return null;
+    const t = planTargets(plan, { tdee: nt.tdee, kg: w.value });
+    if (c.kcalOverride > 0) t.kcal = c.kcalOverride;
+    return t;
+  };
+  const dietHtml = () => { const t = dietTargets(); return `<section class="card pad stack"><div class="row between"><h3>План исхране</h3><a class="btn sm" href="#/ishrana">Сви планови</a></div>
+    <div class="fgrid">
+      <div class="field"><label for="dp">План</label><select id="dp" class="inp"><option value="">— није изабран —</option>${DIET_CATS.map(([k, v]) => `<optgroup label="${v}">${DIET_PLANS.filter((x) => x.cat === k).map((x) => `<option value="${x.id}" ${x.id === c.dietPlanId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</optgroup>`).join('')}</select></div>
+      <div class="field"><label for="dkc">Дневни унос kcal (празно = аутоматски)</label><input id="dkc" class="inp" inputmode="numeric" value="${c.kcalOverride || ''}" placeholder="${plan && nt ? Math.round(nt.tdee * plan.kcalFactor / 10) * 10 : ''}"></div>
+    </div>
+    ${plan ? (nt ? `<div class="small muted">Циљ: <b>${fmtNum(t.kcal, 0)} kcal</b> и <b>${t.protein} g протеина</b> (${fmtNum(plan.proteinPerKg, 1)} g/kg × ${fmtNum(w.value)} kg). Јеловник је прилагођен клијенту; примјер дана, намирнице се мијењају по табели замјена.</div>
+      <details><summary class="lbl" style="cursor:pointer;min-height:36px;display:flex;align-items:center">О плану (принципи, замјене)</summary>${planInfoHtml(plan)}</details>
+      ${menuHtml(plan, t)}
+      <details><summary class="lbl" style="cursor:pointer;min-height:36px;display:flex;align-items:center">Мјере руком (без ваге)</summary>${handHtml(t, plan.meals.length)}</details>`
+      : '<p class="muted small">За прилагођен јеловник потребни су пол, датум рођења, висина и мјерење масе.</p>') : '<p class="muted small">Изаберите посни или мрсни план — јеловник ће се прерачунати на потрошњу и масу клијента.</p>'}
+    <div><div class="lbl">Суплементи клијента</div><div class="chips">${SUPPLEMENTS.filter((x) => x.ev !== 'X').map((x) => `<button class="qchip ${supps.includes(x.id) ? 'on' : ''}" data-sup="${x.id}">${esc(x.name)}</button>`).join('')}</div>
+      ${supps.length ? `<ul class="find small">${supps.map((id) => { const x = SUPPLEMENT[id]; return `<li><b>${esc(x.name)}</b> (${EVIDENCE[x.ev].label.toLowerCase()}): ${esc(x.dose)} ${esc(x.timing)}${plan && plan.cat === 'posno' ? ' Пост: ' + esc(x.posno) : ''}</li>`; }).join('')}</ul>` : '<p class="small muted">Додирните суплемент да га додате клијенту (опис и упозорења: Исхрана → Суплементи).</p>'}</div>
+  </section>`; };
+  const bindDiet = () => {
+    root.querySelector('#dp').onchange = async (e) => { if (await save(() => repo.saveClient({ id: c.id, dietPlanId: e.target.value || null }))) re(); };
+    root.querySelector('#dkc').onchange = async (e) => { const n = parseNum(e.target.value); if (Number.isNaN(n) || (n !== null && (n < 800 || n > 7000))) { e.target.classList.add('bad'); toast('Унос између 800 и 7000 kcal, или празно.', 'bad'); return; } if (await save(() => repo.saveClient({ id: c.id, kcalOverride: n || null }))) re(); };
+    root.querySelectorAll('[data-sup]').forEach((b) => (b.onclick = async () => { const id = b.dataset.sup; const next = supps.includes(id) ? supps.filter((x) => x !== id) : [...supps, id]; if (await save(() => repo.saveClient({ id: c.id, supplements: next }))) re(); }));
+  };
 
   root.innerHTML = `<div class="stack">
     <section class="card pad stack">
@@ -67,9 +97,11 @@ export async function renderClientPlan(root, c0) {
           <p class="small muted">Максимални пулс процијењен као 208 − 0,7 × узраст (${kv.max}); пулс у мировању ${kv.rest} (мјерење ${fmtDate(rest.date)}). Процјена — тачније вриједности даје тест оптерећења.</p>`
           : '<p class="muted small">Потребни су датум рођења и мјерење „Пулс у мировању“ (картица Мјерења и налази).</p>'}
       </section>
-    </div></div>`;
+    </div>
+    ${dietHtml()}</div>`;
 
   const pe = root.querySelector('#p-edit'); if (pe) pe.onclick = () => clientForm(c, re);
+  bindDiet();
   root.querySelector('#g-add').onclick = () => goalForm(c, null, cur, re);
   root.querySelectorAll('[data-ge]').forEach((b) => (b.onclick = () => goalForm(c, goals.find((g) => g.id === b.dataset.ge), cur, re)));
   root.querySelectorAll('[data-gd]').forEach((b) => (b.onclick = async () => { const g = goals.find((x) => x.id === b.dataset.gd); if (await save(() => repo.saveGoal({ id: g.id, done: g.done ? 0 : 1 }))) re(); }));

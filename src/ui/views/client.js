@@ -1,5 +1,6 @@
 // Профил клијента: календар и дневни унос, историја, програми, напредак.
 import { repo, save, confirmDlg, toast, initials, fullName } from '../core.js';
+import { renderClientBodyComp } from './bodycomp.js';
 import { esc, fmtDate, fmtDateLong, today, addDays, parseDate, isoDate, MONTHS_CAP, DAYS_SHORT, fmtNum, monthStart } from '../../lib/util.js';
 import { STATUS } from '../../domain/rules.js';
 import { clientForm } from './clients.js';
@@ -17,7 +18,7 @@ export async function render(main, [id, tab = 'trening']) {
   const c = await repo.getClient(id);
   if (!c) { main.innerHTML = '<div class="wrap"><p class="empty card">Клијент није пронађен.</p></div>'; return; }
   if (st.cid !== id) { st.cid = id; st.day = today(); st.month = monthStart(today()); }
-  const TABS = [['trening', 'Календар и унос'], ['istorija', 'Историја'], ['programi', 'Програми'], ['napredak', 'Напредак'], ['tijelo', 'Тијело 3Д'], ['nalazi', 'Мјерења и налази'], ['zdravlje', 'Здравље'], ['plan', 'Циљеви и исхрана'], ['clanarina', 'Чланарина и пакети']];
+  const TABS = [['trening', 'Календар и унос'], ['istorija', 'Историја'], ['programi', 'Програми'], ['napredak', 'Напредак'], ['tijelo', 'Тијело 3Д'], ['nalazi', 'Мјерења и налази'], ['sastav', 'Састав тијела'], ['zdravlje', 'Здравље'], ['plan', 'Циљеви и исхрана'], ['clanarina', 'Чланарина и пакети']];
   const hs = healthState(c), injN = activeInjuries(c).length;
   const [pays, opts] = await Promise.all([repo.listPayments({ clientId: id }), repo.getOptions()]);
   const ms = statusOf(pays, opts);
@@ -44,6 +45,7 @@ export async function render(main, [id, tab = 'trening']) {
   if (tab === 'napredak') return renderClientProgress(root, c.id);
   if (tab === 'clanarina') return renderClientMembership(root, c);
   if (tab === 'nalazi') return renderClientFindings(root, c);
+  if (tab === 'sastav') return renderClientBodyComp(root, c);
   if (tab === 'zdravlje') return renderClientHealth(root, c);
   if (tab === 'plan') return renderClientPlan(root, c);
   if (tab === 'tijelo') return renderClientBody(root, c);

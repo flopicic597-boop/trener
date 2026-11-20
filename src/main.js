@@ -13,6 +13,7 @@ import * as clients from './ui/views/clients.js';
 import * as client from './ui/views/client.js';
 import * as session from './ui/views/session.js';
 import * as programs from './ui/views/programs.js';
+import * as nutrition from './ui/views/nutrition.js';
 import * as overview from './ui/views/overview.js';
 import * as progress from './ui/views/progress.js';
 import * as library from './ui/views/library.js';
@@ -36,6 +37,7 @@ const NAV = [
   ['napredak', 'Напредак', ICONS.chart],
   ['programi', 'Програми', ICONS.list],
   ['atlas', 'Атлас тијела', ICONS.body],
+  ['ishrana', 'Исхрана', ICONS.food],
   ['biblioteka', 'Библиотека вјежби', ICONS.dumbbell],
   ['podaci', 'Подаци и копије', ICONS.data],
 ];
@@ -55,6 +57,7 @@ const ROUTES = {
   raspored: [schedule.render, 'raspored'],
   izvjestaj: [report.render, 'klijenti'],
   atlas: [atlas.render, 'atlas'],
+  ishrana: [nutrition.render, 'ishrana'],
 };
 
 function shell() {

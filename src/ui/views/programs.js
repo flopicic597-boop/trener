@@ -4,6 +4,7 @@ import { esc, fmtNum, parseNum, parseDuration } from '../../lib/util.js';
 import { fmtTempo, normalizeTempo, validateSet, TEMPO_HELP } from '../../domain/rules.js';
 import { TYPE_SHORT } from '../../data/exercises-seed.js';
 import { pickExercise, scheduleDialog } from '../dialogs.js';
+import { PROGRAM_LIBRARY, LIB_CATEGORIES, dayToItems, planNote } from '../../data/program-library.js';
 
 const st = { archived: false };
 
@@ -12,7 +13,7 @@ export async function render(main) {
   const list = all.filter((p) => !!p.archived === st.archived);
   const cname = (id) => fullName(clients.find((c) => c.id === id));
   main.innerHTML = `<div class="wrap">
-    <div class="phead"><div><div class="eyebrow">Шаблони</div><h1>Програми</h1></div><button class="btn primary big" data-new>+ Нови програм</button></div>
+    <div class="phead"><div><div class="eyebrow">Шаблони</div><h1>Програми</h1></div><div class="row"><a class="btn big" href="#/gotovi-programi">Готови програми</a><button class="btn primary big" data-new>+ Нови програм</button></div></div>
     <p class="small muted">Програм је шаблон. При заказивању се копира у тренинг, па измјена шаблона не мијења већ сачуване тренинге. „Додијели“ прави засебну копију за клијента.</p>
     <div class="seg"><button data-arch="0" class="${st.archived ? '' : 'on'}">Активни</button><button data-arch="1" class="${st.archived ? 'on' : ''}">Архива</button></div>
     <section class="card list">${list.map((p) => `<div class="litem" style="cursor:default"><div class="grow"><b>${esc(p.name)}</b>
@@ -126,4 +127,56 @@ export async function renderEditor(main, [id]) {
     });
   };
   draw();
+}
+
+/* ---------------- библиотека готових програма ---------------- */
+const lib = { cat: 'loss' };
+
+function itemLine(x, ex) {
+  const dose = x.sec != null ? `${x.sets} × ${x.sec >= 120 ? Math.round(x.sec / 60) + ' мин' : x.sec + ' с'}` : `${x.sets} × ${x.reps}`;
+  const extra = [x.tempo ? 'темпо ' + fmtTempo(x.tempo) : '', x.rest ? 'пауза ' + x.rest + ' с' : ''].filter(Boolean).join(' · ');
+  return `<div class="litem" style="cursor:default;min-height:0;padding:7px 0"><div class="grow"><b>${esc(ex?.name || x.id)}</b>${x.note ? `<small>${esc(x.note)}</small>` : ''}</div>
+    <div style="text-align:right"><b class="num">${dose}</b>${extra ? `<small class="muted" style="display:block">${extra}</small>` : ''}</div></div>`;
+}
+
+export async function renderLibrary(main) {
+  const [exMap, clients] = await Promise.all([repo.exerciseMap(), repo.listClients()]);
+  const plans = PROGRAM_LIBRARY.filter((p) => p.cat === lib.cat);
+  main.innerHTML = `<div class="wrap">
+    <a href="#/programi" class="muted" style="text-decoration:none">← Програми</a>
+    <div class="phead"><div><div class="eyebrow">Библиотека</div><h1>Готови програми</h1></div></div>
+    <p class="small muted">Планови по општеприхваћеним смјерницама за тренинг. „Додај у моје програме“ прави по један шаблон за сваки дан плана (за клијента или као општи шаблон), а затим их мијењате и заказујете као и остале програме. Килаже су празне — уписујете их по клијенту.</p>
+    <div class="chips">${LIB_CATEGORIES.map(([k, v]) => `<button class="qchip ${lib.cat === k ? 'on' : ''}" data-cat="${k}">${v} (${PROGRAM_LIBRARY.filter((p) => p.cat === k).length})</button>`).join('')}</div>
+    ${lib.cat.startsWith('hashi') ? '<div class="banner warn small"><div><b>Хашимото:</b> програм је за особе са стабилном терапијом и сагласношћу љекара. Ово није медицински савјет — при погоршању симптома клијента упутити ендокринологу.</div></div>' : ''}
+    ${plans.map((p) => `<details class="card pad">
+      <summary style="cursor:pointer;list-style:none"><div class="row between" style="gap:8px;align-items:flex-start"><div class="grow"><h3 style="margin:0">${esc(p.name)}</h3>
+        <div class="chips" style="margin-top:6px"><span class="chip accent">${esc(p.level)}</span><span class="chip muted">${esc(p.days)}</span><span class="chip muted">${esc(p.weeks)}</span><span class="chip muted">${p.dayList.length} ${p.dayList.length === 1 ? 'тренинг' : 'тренинга'}</span></div></div>
+        <span class="small muted">детаљи ▾</span></div></summary>
+      <div class="stack" style="margin-top:12px">
+        <div><div class="lbl">Циљ</div><p>${esc(p.goal)}</p></div>
+        <div><div class="lbl">Принципи</div><ul class="find">${p.principles.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>
+        <div><div class="lbl">Прогресија</div><p>${esc(p.progression)}</p></div>
+        ${p.dayList.map((d) => `<div class="card pad" style="background:var(--surface-2)"><div class="lbl">${esc(d.name)}</div><div class="list">${d.items.map((x) => itemLine(x, exMap.get(x.id))).join('')}</div></div>`).join('')}
+        <div class="row"><button class="btn primary" data-add="${p.id}">Додај у моје програме</button></div>
+      </div></details>`).join('')}
+  </div>`;
+  main.querySelectorAll('[data-cat]').forEach((b) => (b.onclick = () => { lib.cat = b.dataset.cat; renderLibrary(main); }));
+  main.querySelectorAll('[data-add]').forEach((b) => (b.onclick = () => addPlanDialog(PROGRAM_LIBRARY.find((p) => p.id === b.dataset.add), clients, exMap)));
+}
+
+function addPlanDialog(plan, clients, exMap) {
+  const m = openModal({
+    title: 'Додај план у програме',
+    body: `<p><b>${esc(plan.name)}</b></p><p class="small muted">Биће направљено ${plan.dayList.length} ${plan.dayList.length === 1 ? 'шаблон' : 'шаблона'}: ${plan.dayList.map((d) => esc(d.name)).join(', ')}.</p>
+      <div class="field"><label for="lc">Коме</label><select id="lc" class="inp"><option value="">Општи шаблон</option>${clients.map((c) => `<option value="${c.id}">${esc(fullName(c))}</option>`).join('')}</select></div>`,
+    foot: '<button class="btn" data-close>Одустани</button><button class="btn primary" id="lok">Додај</button>',
+  });
+  m.querySelector('#lok').onclick = async () => {
+    const clientId = m.querySelector('#lc').value || null;
+    const ok = await save(async () => {
+      for (const d of plan.dayList) await repo.saveProgram({ name: `${plan.name} — ${d.name}`, note: planNote(plan, d), clientId, items: dayToItems(d, exMap) });
+      return true;
+    });
+    if (ok) { closeModal(); toast(`Додато у програме: ${plan.dayList.length}.`); location.hash = '#/programi'; }
+  };
 }

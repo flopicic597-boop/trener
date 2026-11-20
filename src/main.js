@@ -47,6 +47,7 @@ const ROUTES = {
   napredak: [progress.render, 'napredak'],
   programi: [programs.render, 'programi'],
   program: [programs.renderEditor, 'programi'],
+  'gotovi-programi': [programs.renderLibrary, 'programi'],
   biblioteka: [library.render, 'biblioteka'],
   podaci: [data.render, 'podaci'],
   clanarine: [membership.render, 'clanarine'],

@@ -7,8 +7,8 @@ import { suggestExercises, MODES } from '../../domain/prehab.js';
 import { TYPE_SHORT } from '../../data/exercises-seed.js';
 import { MUSCLE, MUSCLE_FIELDS, musclesForZone, searchMuscles } from '../../data/muscles.js';
 
-const st = { sex: 'm', layer: 'muscle', sel: null, cid: null };
-const CREDIT = '<p class="small muted" style="margin:4px 2px">3Д модел мушкарца: <a href="https://www.z-anatomy.com" target="_blank" rel="noopener">Z-Anatomy</a> (CC BY-SA 4.0), заснован на BodyParts3D © The Database Center for Life Science (CC BY-SA 2.1 JP); смањен и компресован за ову апликацију. Женски модел: MakeHuman (CC0).</p>';
+const st = { layer: 'muscle', sel: null, cid: null };
+const CREDIT = '<p class="small muted" style="margin:4px 2px">3Д анатомски модел: <a href="https://www.z-anatomy.com" target="_blank" rel="noopener">Z-Anatomy</a> (CC BY-SA 4.0), заснован на BodyParts3D © The Database Center for Life Science (CC BY-SA 2.1 JP); смањен и компресован за ову апликацију.</p>';
 
 /** Учитава 3Д приказ (three.js се учитава тек овдје); без WebGL-а враћа null */
 async function mountViewer(box, opts) {
@@ -20,14 +20,13 @@ async function mountViewer(box, opts) {
     return v;
   } catch (e) {
     console.error(e);
-    box.innerHTML = '<p class="empty">3Д приказ није доступан на овом уређају (WebGL). Зоне можете бирати са списка испод.</p>';
+    box.innerHTML = '<p class="empty">3Д модел није могуће приказати на овом уређају (WebGL или учитавање модела). Зоне можете бирати са списка испод.</p>';
     return null;
   }
 }
 
-function controlsHtml(sexToggle = true) {
+function controlsHtml() {
   return `<div class="row between" style="gap:8px">
-    ${sexToggle ? `<div class="seg">${[['m', 'Мушко'], ['f', 'Женско']].map(([k, v]) => `<button data-sex="${k}" class="${st.sex === k ? 'on' : ''}">${v}</button>`).join('')}</div>` : ''}
     <div class="seg">${Object.entries(LAYERS).map(([k, v]) => `<button data-layer="${k}" class="${st.layer === k ? 'on' : ''}">${v}</button>`).join('')}</div>
     <div class="seg"><button data-view="front">Напријед</button><button data-view="back">Позади</button></div></div>`;
 }
@@ -73,7 +72,6 @@ export function zoneInfoHtml(id, side, exMap) {
 }
 
 function bindControls(root, viewer, onChange) {
-  root.querySelectorAll('[data-sex]').forEach((b) => (b.onclick = () => { st.sex = b.dataset.sex; root.querySelectorAll('[data-sex]').forEach((x) => x.classList.toggle('on', x === b)); viewer?.setSex(st.sex); }));
   root.querySelectorAll('[data-layer]').forEach((b) => (b.onclick = () => { st.layer = b.dataset.layer; st.sel = null; root.querySelectorAll('[data-layer]').forEach((x) => x.classList.toggle('on', x === b)); viewer?.setLayer(st.layer); onChange(null); }));
   root.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => viewer?.view(b.dataset.view)));
   root.querySelectorAll('[data-z]').forEach((b) => (b.onclick = () => {
@@ -90,7 +88,7 @@ export async function render(main) {
   const exMap = await repo.exerciseMap();
   main.innerHTML = `<div class="wrap">
     <div class="phead"><div><div class="eyebrow">Анатомија и превенција</div><h1>Атлас тијела</h1></div></div>
-    ${controlsHtml(true)}
+    ${controlsHtml()}
     <div class="grid2" style="align-items:start">
       <div class="card body3d"><div id="v3d" class="v3d"></div><p class="small muted v3d-hint">Превуците за окретање · два прста за зум · додирните зону</p></div>
       <section class="card pad" id="info"></section>
@@ -102,7 +100,7 @@ export async function render(main) {
   const info = main.querySelector('#info');
   const show = (sel) => { st.sel = sel; info.innerHTML = sel ? partHtml(sel) + zoneInfoHtml(sel.zone, sel.side, exMap) : `<h3>Занимљивости из науке</h3><ul class="find">${SCIENCE.map((t) => `<li>${esc(t)}</li>`).join('')}</ul><p class="small muted">Додирните зону на моделу за опис, честе проблеме, превенцију и вјежбе. Слојеви: мишићи, скелет и зглобови, мишићно-фасцијални ланци.</p>`; };
   show(null);
-  const viewer = await mountViewer(main.querySelector('#v3d'), { sex: st.sex, layer: st.layer, onPick: show });
+  const viewer = await mountViewer(main.querySelector('#v3d'), { layer: st.layer, onPick: show });
   bindControls(main, viewer, show);
   const ms = main.querySelector('#msearch'), mres = main.querySelector('#mres');
   ms.oninput = () => {
@@ -131,12 +129,12 @@ function disposeOnLeave(main, viewer) {
 export async function renderClientBody(root, c0) {
   const c = await repo.getClient(c0.id);
   const exMap = await repo.exerciseMap();
-  if (st.cid !== c.id) { st.cid = c.id; st.sel = null; st.sex = c.sex === 'f' ? 'f' : 'm'; }
+  if (st.cid !== c.id) { st.cid = c.id; st.sel = null; }
   let marks = (c.bodyMarks || []).slice();
   const active = () => marks.filter((m) => m.active !== 0);
 
   root.innerHTML = `<div class="stack">
-    ${controlsHtml(true)}
+    ${controlsHtml()}
     <div class="grid2" style="align-items:start">
       <div class="card body3d"><div id="v3d" class="v3d"></div><p class="small muted v3d-hint">Додирните зону и обиљежите: бол, повреда, укоченост или фокус</p></div>
       <div class="stack"><section class="card pad" id="info"></section>
@@ -196,7 +194,7 @@ export async function renderClientBody(root, c0) {
   }
 
   drawInfo(null); drawList();
-  const viewer = await mountViewer(root.querySelector('#v3d'), { sex: st.sex, layer: st.layer, marks: active(), onPick: drawInfo });
+  const viewer = await mountViewer(root.querySelector('#v3d'), { layer: st.layer, marks: active(), onPick: drawInfo });
   bindControls(root, viewer, drawInfo);
   disposeOnLeave(root, viewer);
 }

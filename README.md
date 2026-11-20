@@ -59,5 +59,4 @@ npm run preview
 
 ## Извори
 
-- Детаљан анатомски модел мушкарца (мишићи, кости, фасције): [Z-Anatomy](https://www.z-anatomy.com) (Gauthier Kervyn), CC BY-SA 4.0, заснован на [BodyParts3D](https://lifesciencedb.jp/bp3d/) © The Database Center for Life Science, CC BY-SA 2.1 Japan. Измјене: изабрани дијелови, смањен број троуглова, Draco компресија (`public/body/za/`, види `public/body/za/LICENSE.txt`). Изведени модел се дијели под истом лиценцом CC BY-SA 4.0.
-- Модел људског тијела (женско и једноставнији мушки): MakeHuman base mesh и macro targets, CC0 1.0 Universal — `public/body/human.bin` прави `scripts/build-body-mesh.mjs`.
+- Детаљан анатомски модел тијела (мишићи, кости, фасције): [Z-Anatomy](https://www.z-anatomy.com) (Gauthier Kervyn), CC BY-SA 4.0, заснован на [BodyParts3D](https://lifesciencedb.jp/bp3d/) © The Database Center for Life Science, CC BY-SA 2.1 Japan. Измјене: изабрани дијелови, смањен број троуглова, Draco компресија (`public/body/za/`, види `public/body/za/LICENSE.txt`). Изведени модел се дијели под истом лиценцом CC BY-SA 4.0.

@@ -2,14 +2,13 @@
 // Црта само када се нешто промијени (штеди батерију таблета).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { buildBody } from './model.js';
-import { loadHumanData } from './human.js';
 import { loadZA, buildZABody } from './za.js';
-import { MARK_TYPES } from '../data/body-zones.js';
 
 const css = (name, fallback) => (getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback);
 
-export async function createBodyViewer(container, { sex = 'm', layer = 'muscle', marks = [], onPick, detailed = true } = {}) {
+export async function createBodyViewer(container, { layer = 'muscle', marks = [], onPick } = {}) {
+  // анатомски модел (Z-Anatomy); учитава се прије прављења приказа, грешка иде позиваоцу
+  const za = await loadZA();
   const w = () => Math.max(200, container.clientWidth), h = () => Math.max(260, container.clientHeight);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -37,45 +36,25 @@ export async function createBodyViewer(container, { sex = 'm', layer = 'muscle',
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.45, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(css('--p1', '#22d3ee')), transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2; scene.add(ring);
 
-  let body = null, state = { sex, layer, marks, selected: null };
-  const palette = () => ({ muscle: '#c23a4e', joint: '#f5b84a', bone: '#e8e2d4', fascia: css('--p1', '#22d3ee'), skin: css('--p2', '#a78bfa'), skinSolid: '#c9a58f' });
+  let body = null, state = { layer, marks, selected: null };
+  const palette = () => ({ muscle: '#c23a4e', bone: '#e8e2d4', fascia: css('--p1', '#22d3ee') });
 
+  // геометрија је заједничка (кеш модела), ослобађају се само материјали
+  const freeMaterials = () => body?.root.traverse((o) => { if (o.isMesh) o.material?.dispose?.(); });
   function build() {
-    if (body) { scene.remove(body.root); const keepGeo = body.detailed; body.root.traverse((o) => { if (o.isMesh) { if (!keepGeo) o.geometry?.dispose?.(); if (keepGeo) o.material?.dispose?.(); } }); }
-    body = state.sex === 'm' && za ? buildZABody(za, palette()) : buildBody(state.sex, palette(), data);
+    if (body) { scene.remove(body.root); freeMaterials(); }
+    body = buildZABody(za, palette());
     scene.add(body.root);
     applyLayer(); paint();
   }
   function applyLayer() {
     ring.material.color.set(css('--p1', '#22d3ee'));
-    if (body.detailed) { body.setLayer(state.layer); return; }
-    for (const k of ['muscle', 'skeleton', 'fascia']) body.layers[k].visible = state.layer === k;
-    body.layers.skin.visible = state.layer !== 'muscle';
-    body.layers.skin.traverse((o) => { if (o.isMesh) o.material.opacity = state.layer === 'skeleton' ? 0.12 : 0.2; });
-    ring.material.color.set(css('--p1', '#22d3ee'));
+    body.setLayer(state.layer);
   }
-  /** Боје: ознака клијента (бол/повреда/…) > изабрана зона > основна боја слоја */
+  /** Боје: ознака клијента (бол/повреда/…) > изабрани дио/зона > основна боја слоја */
   function paint() {
-    const base = palette();
     const markOf = new Map(state.marks.filter((m) => m.active !== 0).map((m) => [m.zone + '|' + (m.side || 'C'), m]));
-    if (body.detailed) { body.paintAll(state, markOf); render(); return; }
-    // мишићи: боје по тачкама површине
-    body.paintMuscle((zone, side) => {
-      const mk = markOf.get(zone + '|' + side) || markOf.get(zone + '|C');
-      const sel = state.selected && state.selected.zone === zone && (state.selected.side === side || side === 'C');
-      return { color: mk ? new THREE.Color(MARK_TYPES[mk.type]?.color || '#ffffff') : null, dim: !!state.selected && !sel && !mk, glow: sel };
-    });
-    for (const layer of ['skeleton', 'fascia']) {
-      for (const m of body.pickables[layer]) {
-        const { zone, side } = m.userData;
-        const mk = markOf.get(zone + '|' + side) || markOf.get(zone + '|C');
-        const sel = state.selected && state.selected.zone === zone && (state.selected.side === side || side === 'C');
-        const c = new THREE.Color(mk ? MARK_TYPES[mk.type]?.color || '#ffffff' : m.material.userData.base ?? base[layer === 'skeleton' ? 'joint' : layer]);
-        m.material.color.copy(c); m.material.emissive.copy(c);
-        m.material.emissiveIntensity = sel ? 0.95 : mk ? 0.55 : layer === 'fascia' ? 0.5 : 0.12;
-        if (layer !== 'fascia') { m.material.transparent = !!state.selected && !sel; m.material.opacity = state.selected && !sel ? 0.55 : 1; }
-      }
-    }
+    body.paintAll(state, markOf);
     render();
   }
 
@@ -95,26 +74,22 @@ export async function createBodyViewer(container, { sex = 'm', layer = 'muscle',
     ray.setFromCamera(ptr, camera);
     const hit = ray.intersectObjects(body.pickables[state.layer], false)[0];
     const u = hit?.object.userData;
-    state.selected = !hit ? null : u.zoneAt ? u.zoneAt(hit.face) : u.label ? { zone: u.zone, side: u.side, muscleId: u.muscleId, label: u.label, layer: state.layer } : { zone: u.zone, side: u.side };
+    state.selected = !hit ? null : { zone: u.zone, side: u.side, muscleId: u.muscleId, label: u.label, layer: state.layer };
     paint();
     onPick?.(state.selected);
   });
 
-  // детаљни мушки модел (Z-Anatomy); ако се не учита, остаје једноставнији модел
-  const [data, za] = await Promise.all([loadHumanData(), detailed ? loadZA().catch((e) => { console.warn('Z-Anatomy модел није учитан', e); return null; }) : null]);
   const ro = new ResizeObserver(() => { renderer.setSize(w(), h()); camera.aspect = w() / h(); camera.updateProjectionMatrix(); render(); });
   ro.observe(container);
   build();
 
   return {
-    get detailed() { return !!body?.detailed; },
-    setSex(s) { if (s !== state.sex) { state.sex = s; build(); } },
     setLayer(l) { state.layer = l; state.selected = null; applyLayer(); paint(); },
     setMarks(mk) { state.marks = mk || []; paint(); },
     select(sel) { state.selected = sel; paint(); },
     /** Окреће модел: напријед или позади */
     view(dir) { const d = camera.position.distanceTo(controls.target); camera.position.set(0, 1.0, dir === 'back' ? -d : d); controls.update(); render(); },
-    refreshColors() { applyLayer(); paint(); },
-    dispose() { ro.disconnect(); controls.dispose(); renderer.dispose(); body?.root.traverse((o) => { if (o.isMesh) { if (!body.detailed) o.geometry?.dispose?.(); o.material?.dispose?.(); } }); renderer.domElement.remove(); },
+    refreshColors() { build(); },
+    dispose() { ro.disconnect(); controls.dispose(); renderer.dispose(); freeMaterials(); renderer.domElement.remove(); },
   };
 }

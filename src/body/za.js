@@ -24,7 +24,7 @@ export async function loadZA() {
 const KIND = { muscle: 'muscles', skeleton: 'bones', fascia: 'fascia' };
 
 /**
- * Тијело у истом облику као buildBody из model.js:
+ * Тијело за приказ:
  * { root, layers: {skin, muscle, skeleton, fascia}, pickables, paintAll, setLayer, detailed: true }.
  * Сваки дио има userData { zone, side, muscleId, label (енглески анатомски назив) }.
  */
